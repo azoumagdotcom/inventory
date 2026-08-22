@@ -16,11 +16,12 @@
  *   node scripts/generate-license.mjs --show-public         Print the public key
  */
 
-import { writeFile, readFile, appendFile, mkdir, chmod, readdir } from 'node:fs/promises';
+import { writeFile, readFile, appendFile, mkdir, chmod, readdir, unlink } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { generateKeyPairSync, sign, verify, createPrivateKey, createPublicKey } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import * as readlinePromises from 'node:readline/promises';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const KEYS_DIR = join(ROOT, 'keys');
@@ -206,6 +207,112 @@ async function cmdList(full) {
   console.log(`Total : ${rows.length} licence${rows.length>1?'s':''}`);
 }
 
+function stampFromIso(iso) {
+  const d = new Date(iso);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+}
+
+async function findLicenseFile(customer, isoStamp) {
+  const slug = slugify(customer);
+  const expected = join(LICENSES_DIR, `${slug}-${stampFromIso(isoStamp)}.txt`);
+  if (existsSync(expected)) return expected;
+  // Fallback: pick the first file starting with the slug
+  try {
+    const files = await readdir(LICENSES_DIR);
+    const match = files.find(f => f.startsWith(slug + '-') && f.endsWith('.txt'));
+    return match ? join(LICENSES_DIR, match) : null;
+  } catch { return null; }
+}
+
+async function rewriteRegistry(rows) {
+  const header = 'mint_datetime,customer,product,issued,key\n';
+  const body = rows.map(r =>
+    [r.mint_datetime, r.customer, r.product, r.issued, r.key].map(csvEscape).join(',')
+  ).join('\n');
+  await writeFile(REGISTRY, header + (body ? body + '\n' : ''), { mode: 0o600 });
+}
+
+async function ask(question) {
+  const rl = readlinePromises.createInterface({ input: process.stdin, output: process.stdout });
+  try { return (await rl.question(question)).trim(); }
+  finally { rl.close(); }
+}
+function isYes(s) {
+  const v = String(s || '').trim().toLowerCase();
+  return v === 'o' || v === 'oui' || v === 'y' || v === 'yes';
+}
+
+async function cmdDelete(query, opts = {}) {
+  const q = String(query).toLowerCase();
+  const rows = await readRegistry();
+  const matches = rows
+    .map((r, idx) => ({ ...r, _idx: idx }))
+    .filter(r => (r.customer || '').toLowerCase().includes(q));
+  if (matches.length === 0) {
+    console.log(`Aucune licence pour "${query}".`);
+    return;
+  }
+
+  console.log('');
+  console.log(`${matches.length} correspondance${matches.length>1?'s':''} pour "${query}" :`);
+  matches.forEach((r, i) => {
+    console.log(`  [${i+1}] ${r.customer}`);
+    console.log(`      émise ${r.mint_datetime}`);
+    console.log(`      ${shortKey(r.key)}`);
+  });
+  console.log('');
+
+  let toDelete;
+  if (matches.length === 1) {
+    if (!opts.yes) {
+      const ans = await ask('Confirmer la suppression ? (o/N) ');
+      if (!isYes(ans)) { console.log('Annulé.'); return; }
+    }
+    toDelete = matches;
+  } else {
+    let selection;
+    if (opts.all) {
+      selection = 'all';
+    } else {
+      selection = await ask('Quel(s) numéro(s) supprimer ? (ex: 1,3  ou  "all"  ou  "annuler") : ');
+    }
+    const norm = String(selection || '').trim().toLowerCase();
+    if (!norm || norm === 'annuler' || norm === 'cancel') { console.log('Annulé.'); return; }
+    if (norm === 'all') {
+      toDelete = matches;
+    } else {
+      const nums = norm.split(',').map(s => parseInt(s.trim(), 10))
+        .filter(n => !isNaN(n) && n >= 1 && n <= matches.length);
+      if (nums.length === 0) { console.log('Sélection invalide, annulé.'); return; }
+      toDelete = [...new Set(nums)].map(n => matches[n-1]);
+    }
+    if (!opts.yes) {
+      const ans = await ask(`Supprimer ${toDelete.length} licence(s) ? (o/N) `);
+      if (!isYes(ans)) { console.log('Annulé.'); return; }
+    }
+  }
+
+  const idxSet = new Set(toDelete.map(r => r._idx));
+  const remaining = rows.filter((_, i) => !idxSet.has(i));
+  await rewriteRegistry(remaining);
+
+  let filesDeleted = 0;
+  for (const r of toDelete) {
+    const file = await findLicenseFile(r.customer, r.mint_datetime);
+    if (file && existsSync(file)) {
+      try { await unlink(file); filesDeleted++; } catch {}
+    }
+  }
+
+  console.log('');
+  console.log(`✓ ${toDelete.length} entrée(s) supprimée(s) du registre.`);
+  console.log(`✓ ${filesDeleted} fichier(s) individuel(s) supprimé(s).`);
+  console.log('');
+  console.log('⚠ Rappel : la clé chez le client reste FONCTIONNELLE.');
+  console.log('  Cette suppression n\'affecte que votre registre local.');
+}
+
 async function cmdFind(query) {
   const q = String(query).toLowerCase();
   const rows = await readRegistry();
@@ -234,6 +341,8 @@ Usage:
   node scripts/generate-license.mjs --list              List all minted licenses
   node scripts/generate-license.mjs --list --full       List with full keys
   node scripts/generate-license.mjs --find "acme"       Find license(s) by name
+  node scripts/generate-license.mjs --delete "acme"     Delete matching license(s) from registry
+                              (add --yes to skip confirm, --all if multiple matches)
   node scripts/generate-license.mjs --verify "AZMG-..." Verify a license key
   node scripts/generate-license.mjs --show-public       Print public key (SPKI, base64)
 
@@ -258,6 +367,13 @@ async function main() {
   if (args[0] === '--find') {
     if (!args[1]) { console.error('Missing search term.'); process.exit(1); }
     await cmdFind(args.slice(1).join(' '));
+    return;
+  }
+  if (args[0] === '--delete') {
+    const flags = new Set(args.filter(a => a.startsWith('--')));
+    const query = args.slice(1).filter(a => !a.startsWith('--')).join(' ').trim();
+    if (!query) { console.error('Missing customer name to delete.'); process.exit(1); }
+    await cmdDelete(query, { yes: flags.has('--yes'), all: flags.has('--all') });
     return;
   }
 

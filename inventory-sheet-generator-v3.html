@@ -251,10 +251,294 @@ body.theme-dark .table-toolbar input.table-search { background: #22264A; border-
   .app-shell { display: block; }
   .hamburger-btn { display: flex; }
 }
+
+/* ---------- LICENSE GATE ---------- */
+.license-gate {
+  position: fixed; inset: 0;
+  background: linear-gradient(135deg, #1D2240 0%, #0d1128 100%);
+  z-index: 99999;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  font-family: "Segoe UI", Arial, sans-serif;
+  overflow: auto;
+}
+.license-card {
+  background: #FFFFFF;
+  border-radius: 12px;
+  padding: 32px;
+  max-width: 520px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+}
+.license-brand { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+.license-mark {
+  width: 48px; height: 48px;
+  background: #F37021;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  color: #1D2240; font-weight: 800; font-size: 18px;
+  flex-shrink: 0;
+}
+.license-title { font-size: 16px; font-weight: 800; color: #1D2240; letter-spacing: 0.3px; }
+.license-subtitle { font-size: 11px; color: #F37021; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; margin-top: 2px; }
+.license-intro { color: #444; font-size: 13.5px; line-height: 1.5; margin-bottom: 20px; }
+.license-gate label { display: block; font-size: 11px; font-weight: 700; color: #1D2240; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.6px; }
+.license-gate textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #E3E3E3;
+  border-radius: 6px;
+  font-family: "Courier New", monospace;
+  font-size: 11.5px;
+  line-height: 1.4;
+  resize: vertical;
+  margin-bottom: 16px;
+  color: #111;
+  background: #FAFAFA;
+}
+.license-gate textarea:focus { outline: none; border-color: #F37021; background: #FFF; }
+.license-btn {
+  width: 100%;
+  padding: 12px;
+  background: #F37021;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  letter-spacing: 0.5px;
+}
+.license-btn:hover { background: #d85e15; }
+.license-btn:disabled { background: #ccc; cursor: not-allowed; }
+.license-msg { margin-top: 12px; font-size: 13px; min-height: 20px; font-weight: 600; }
+.license-msg-ok { color: #16A34A; }
+.license-msg-err { color: #DC2626; }
+.license-msg-info { color: #1D2240; }
+.license-footer { margin-top: 22px; padding-top: 16px; border-top: 1px solid #E3E3E3; font-size: 11px; color: #666; text-align: center; line-height: 1.6; }
+.license-footer strong { color: #F37021; }
+body.license-locked { overflow: hidden; }
+
+/* Sidebar license info box */
+.license-info-box {
+  background: rgba(243, 112, 33, 0.1);
+  border: 1px solid rgba(243, 112, 33, 0.3);
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 12px;
+  text-align: left;
+}
+.license-info-label { font-size: 9px; font-weight: 700; color: #F37021; letter-spacing: 1px; margin-bottom: 4px; }
+.license-info-customer { font-size: 12px; font-weight: 700; color: #FFF4EC; word-break: break-word; margin-bottom: 6px; }
+.license-deactivate {
+  width: 100%;
+  background: transparent;
+  border: 1px solid rgba(255, 244, 236, 0.3);
+  color: #FFF4EC;
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.license-deactivate:hover { background: rgba(255, 244, 236, 0.1); border-color: #F37021; }
 </style>
 </head>
 <body>
-<div class="app-shell">
+
+<!-- ============ LICENSE GATE ============ -->
+<div id="licenseGate" class="license-gate" style="display:none">
+  <div class="license-card">
+    <div class="license-brand">
+      <div class="license-mark">AZ</div>
+      <div>
+        <div class="license-title">AZOUMAG INVENTORY SUITE</div>
+        <div class="license-subtitle">Pro V3 &middot; Activation requise</div>
+      </div>
+    </div>
+    <p class="license-intro">Ce logiciel nécessite une clé de licence valide pour être utilisé. Veuillez coller votre clé d'activation ci-dessous.</p>
+    <form id="licenseGateForm" autocomplete="off">
+      <label for="licenseGateInput">Clé de licence</label>
+      <textarea id="licenseGateInput" placeholder="AZMG-..." rows="4" spellcheck="false" required></textarea>
+      <button type="submit" class="license-btn" id="licenseGateBtn">Activer</button>
+      <div id="licenseGateMsg" class="license-msg" role="status" aria-live="polite"></div>
+    </form>
+    <div class="license-footer">
+      <strong>AZOUMAG © 2026</strong> &middot; The Ultimate Online Solutions<br>
+      Pour obtenir une licence : <strong>azoumagomar56@gmail.com</strong>
+    </div>
+  </div>
+</div>
+
+<!-- ============ LICENSE VERIFICATION (must load before app) ============ -->
+<script>
+(function(){
+  "use strict";
+  var PUBLIC_KEY_B64 = "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEbIZsHfZRa64ACaW4W643oasZUf2yAeqASeXFq32nV2Oetg9shmedxA6WBPmR+yhJWUHBFzPULT8i02zZ6JjO9w==";
+  var PRODUCT_ID = "AZOUMAG-INV-V3";
+  var STORAGE_KEY = "azmg_license_v3";
+
+  function b64ToBytes(s){
+    var bin = atob(s);
+    var out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  function b64urlToBytes(s){
+    s = String(s || "").replace(/-/g, "+").replace(/_/g, "/");
+    while (s.length % 4) s += "=";
+    return b64ToBytes(s);
+  }
+  function bytesToStr(bytes){
+    try { return new TextDecoder("utf-8").decode(bytes); }
+    catch(e){ var s = ""; for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]); return s; }
+  }
+
+  var cachedPubKey = null;
+  function importPublicKey(){
+    if (cachedPubKey) return cachedPubKey;
+    if (!PUBLIC_KEY_B64 || PUBLIC_KEY_B64.indexOf("AZMG_PUBLIC_KEY") !== -1) {
+      return Promise.reject(new Error("Public key not configured"));
+    }
+    cachedPubKey = crypto.subtle.importKey(
+      "spki", b64ToBytes(PUBLIC_KEY_B64),
+      { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]
+    );
+    return cachedPubKey;
+  }
+
+  function verifyKey(licenseKey){
+    if (!licenseKey || typeof licenseKey !== "string") return Promise.resolve(null);
+    var cleaned = licenseKey.replace(/\s+/g, "");
+    var m = cleaned.match(/^AZMG-([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)$/);
+    if (!m) return Promise.resolve(null);
+    var payloadBytes, sigBytes;
+    try {
+      payloadBytes = b64urlToBytes(m[1]);
+      sigBytes = b64urlToBytes(m[2]);
+    } catch(e){ return Promise.resolve(null); }
+    return importPublicKey().then(function(pk){
+      return crypto.subtle.verify(
+        { name: "ECDSA", hash: "SHA-256" }, pk, sigBytes, payloadBytes
+      );
+    }).then(function(ok){
+      if (!ok) return null;
+      try {
+        var payload = JSON.parse(bytesToStr(payloadBytes));
+        if (payload && payload.p === PRODUCT_ID && typeof payload.c === "string") return payload;
+      } catch(e){}
+      return null;
+    }).catch(function(){ return null; });
+  }
+
+  function getStored(){ try { return localStorage.getItem(STORAGE_KEY); } catch(e){ return null; } }
+  function setStored(v){ try { localStorage.setItem(STORAGE_KEY, v); } catch(e){} }
+  function clearStored(){ try { localStorage.removeItem(STORAGE_KEY); } catch(e){} }
+
+  function showGate(){
+    var gate = document.getElementById("licenseGate");
+    var shell = document.querySelector(".app-shell");
+    if (gate) gate.style.display = "flex";
+    if (shell) shell.style.display = "none";
+    document.body.classList.add("license-locked");
+  }
+  function hideGate(license){
+    var gate = document.getElementById("licenseGate");
+    var shell = document.querySelector(".app-shell");
+    if (gate) gate.style.display = "none";
+    if (shell) shell.style.display = "";
+    document.body.classList.remove("license-locked");
+    var box = document.getElementById("licenseInfoBox");
+    var who = document.getElementById("licenseCustomer");
+    if (box) box.style.display = "";
+    if (who && license) who.textContent = license.c;
+    try { document.dispatchEvent(new CustomEvent("azmg:licensed", { detail: license })); } catch(e){}
+  }
+
+  window.AZMG_LICENSE = {
+    current: null,
+    activate: function(key){
+      return verifyKey(key).then(function(license){
+        if (!license) return { ok: false, error: "Clé invalide ou signature incorrecte." };
+        setStored(key.replace(/\s+/g, ""));
+        window.AZMG_LICENSE.current = license;
+        hideGate(license);
+        return { ok: true, license: license };
+      });
+    },
+    deactivate: function(){
+      clearStored();
+      window.AZMG_LICENSE.current = null;
+      location.reload();
+    },
+    isLicensed: function(){ return !!window.AZMG_LICENSE.current; }
+  };
+
+  function init(){
+    // Start hidden so nothing flashes
+    var shell = document.querySelector(".app-shell");
+    if (shell) shell.style.display = "none";
+
+    var stored = getStored();
+    if (!stored) { showGate(); wireForm(); return; }
+    verifyKey(stored).then(function(license){
+      if (license) {
+        window.AZMG_LICENSE.current = license;
+        hideGate(license);
+      } else {
+        clearStored();
+        showGate();
+      }
+      wireForm();
+    });
+  }
+
+  function wireForm(){
+    var form = document.getElementById("licenseGateForm");
+    var deact = document.getElementById("btnDeactivateLicense");
+    if (form && !form.dataset.wired) {
+      form.dataset.wired = "1";
+      form.addEventListener("submit", function(e){
+        e.preventDefault();
+        var input = document.getElementById("licenseGateInput");
+        var msg = document.getElementById("licenseGateMsg");
+        var btn = document.getElementById("licenseGateBtn");
+        msg.textContent = "Vérification…";
+        msg.className = "license-msg license-msg-info";
+        btn.disabled = true;
+        window.AZMG_LICENSE.activate(input.value).then(function(result){
+          btn.disabled = false;
+          if (result.ok) {
+            msg.textContent = "Licence activée pour " + result.license.c;
+            msg.className = "license-msg license-msg-ok";
+          } else {
+            msg.textContent = result.error;
+            msg.className = "license-msg license-msg-err";
+          }
+        });
+      });
+    }
+    if (deact && !deact.dataset.wired) {
+      deact.dataset.wired = "1";
+      deact.addEventListener("click", function(){
+        if (confirm("Désactiver la licence sur ce navigateur ? La clé devra être ressaisie.")) {
+          window.AZMG_LICENSE.deactivate();
+        }
+      });
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
+</script>
+
+<div class="app-shell" style="display:none">
 
   <div class="sidebar-overlay no-print" id="sidebarOverlay"></div>
   <aside class="sidebar no-print" id="sidebar">
@@ -281,6 +565,11 @@ body.theme-dark .table-toolbar input.table-search { background: #22264A; border-
       <button class="theme-toggle" id="btnTheme">Mode Sombre</button>
     </div>
     <div class="sidebar-footer">
+      <div id="licenseInfoBox" class="license-info-box" style="display:none">
+        <div class="license-info-label">LICENCE</div>
+        <div class="license-info-customer" id="licenseCustomer">—</div>
+        <button type="button" class="license-deactivate" id="btnDeactivateLicense">Désactiver</button>
+      </div>
       <strong>AZOUMAG © 2026</strong><br>
       The Ultimate Online Solutions<br>
       All Rights Reserved 2026

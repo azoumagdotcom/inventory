@@ -313,6 +313,47 @@ async function cmdDelete(query, opts = {}) {
   console.log('  Cette suppression n\'affecte que votre registre local.');
 }
 
+async function cmdPurge(opts = {}) {
+  const rows = await readRegistry();
+  let txtFiles = [];
+  try {
+    const all = await readdir(LICENSES_DIR);
+    txtFiles = all.filter(f => f.endsWith('.txt'));
+  } catch {}
+
+  if (rows.length === 0 && txtFiles.length === 0 && !existsSync(REGISTRY)) {
+    console.log('Le registre est déjà vide.');
+    return;
+  }
+
+  console.log('');
+  console.log('⚠ Vous êtes sur le point de supprimer TOUT le registre local :');
+  console.log(`   • ${rows.length} entrée${rows.length>1?'s':''} dans registry.csv`);
+  console.log(`   • ${txtFiles.length} fichier${txtFiles.length>1?'s':''} individuel${txtFiles.length>1?'s':''} (.txt)`);
+  console.log('');
+  console.log('⚠ Les clés déjà distribuées aux clients resteront FONCTIONNELLES.');
+  console.log('  Cette opération n\'affecte que votre registre local.');
+  console.log('');
+
+  if (!opts.yes) {
+    const ans = await ask('Tapez "PURGE" pour confirmer (ou Entrée pour annuler) : ');
+    if (ans !== 'PURGE') { console.log('Annulé.'); return; }
+  }
+
+  let filesDeleted = 0;
+  for (const f of txtFiles) {
+    try { await unlink(join(LICENSES_DIR, f)); filesDeleted++; } catch {}
+  }
+  if (existsSync(REGISTRY)) {
+    try { await unlink(REGISTRY); } catch {}
+  }
+
+  console.log('');
+  console.log(`✓ ${rows.length} entrée(s) supprimée(s) du registre.`);
+  console.log(`✓ ${filesDeleted} fichier(s) individuel(s) supprimé(s).`);
+  console.log(`✓ registry.csv réinitialisé.`);
+}
+
 async function cmdFind(query) {
   const q = String(query).toLowerCase();
   const rows = await readRegistry();
@@ -343,6 +384,8 @@ Usage:
   node scripts/generate-license.mjs --find "acme"       Find license(s) by name
   node scripts/generate-license.mjs --delete "acme"     Delete matching license(s) from registry
                               (add --yes to skip confirm, --all if multiple matches)
+  node scripts/generate-license.mjs --purge             Delete ALL licenses from local registry
+                              (add --yes to skip the "PURGE" confirmation)
   node scripts/generate-license.mjs --verify "AZMG-..." Verify a license key
   node scripts/generate-license.mjs --show-public       Print public key (SPKI, base64)
 
@@ -374,6 +417,11 @@ async function main() {
     const query = args.slice(1).filter(a => !a.startsWith('--')).join(' ').trim();
     if (!query) { console.error('Missing customer name to delete.'); process.exit(1); }
     await cmdDelete(query, { yes: flags.has('--yes'), all: flags.has('--all') });
+    return;
+  }
+  if (args[0] === '--purge') {
+    const flags = new Set(args.filter(a => a.startsWith('--')));
+    await cmdPurge({ yes: flags.has('--yes') });
     return;
   }
 

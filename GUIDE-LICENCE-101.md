@@ -335,6 +335,21 @@ Le script :
 
 **Quand utiliser :** client remboursé, essai terminé, entrée créée par erreur, ménage annuel du registre.
 
+**Tout supprimer d'un coup (`--purge`)** — pour remettre le registre à zéro :
+
+```bash
+node scripts/generate-license.mjs --purge
+```
+
+Le script affiche le nombre d'entrées/fichiers concernés et demande de taper `PURGE` (en majuscules) pour confirmer — c'est irréversible.
+
+Version scriptée sans confirmation :
+```bash
+node scripts/generate-license.mjs --purge --yes
+```
+
+⚠ Idem : les clés déjà distribuées aux clients restent fonctionnelles. `--purge` ne touche pas à `keys/private.pem`.
+
 ---
 
 ## 📋 Partie 5 — Aide-mémoire (à imprimer)
@@ -347,6 +362,8 @@ Le script :
 | Chercher un client | `node scripts/generate-license.mjs --find "nom"` |
 | Supprimer du registre | `node scripts/generate-license.mjs --delete "nom"` |
 | Suppression sans confirmation | `node scripts/generate-license.mjs --delete "nom" --yes` |
+| Purger tout le registre | `node scripts/generate-license.mjs --purge` |
+| Purger sans confirmation | `node scripts/generate-license.mjs --purge --yes` |
 | Vérifier une clé | `node scripts/generate-license.mjs --verify "AZMG-…"` |
 | Voir la clé publique | `node scripts/generate-license.mjs --show-public` |
 | Aide | `node scripts/generate-license.mjs --help` |

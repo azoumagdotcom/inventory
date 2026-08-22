@@ -1,2 +1,5 @@
 # Private signing key for license generation — NEVER commit
 keys/
+
+# Node dependencies
+node_modules/

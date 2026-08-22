@@ -1,0 +1,1311 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AZOUMAG INVENTORY SHEET GENERATOR PRO V2</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<style>
+  /* ============================================================
+     AZOUMAG INVENTORY SHEET GENERATOR PRO V2
+     Couleurs fixes (pas de variables CSS), identité AZOUMAG
+     ============================================================ */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: #F5F5F5;
+    color: #111111;
+    font-family: "Segoe UI", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  body { min-height: 100vh; display: flex; flex-direction: column; }
+
+  /* ---------- HEADER ---------- */
+  .app-header {
+    background: #1D2240;
+    color: #FFF4EC;
+    padding: 18px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .app-header .brand-mark {
+    width: 44px; height: 44px;
+    background: #F37021;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 18px; color: #1D2240;
+    flex-shrink: 0;
+  }
+  .app-header .titles { margin-left: 16px; }
+  .app-header h1 { font-size: 19px; letter-spacing: 0.4px; font-weight: 800; color: #FFF4EC; }
+  .app-header .subtitle {
+    font-size: 11px; color: #F37021; font-weight: 700;
+    letter-spacing: 1px; text-transform: uppercase; margin-top: 2px;
+  }
+  .header-left { display: flex; align-items: center; }
+  .header-right { display: flex; gap: 10px; }
+
+  /* ---------- FOOTER (écran) ---------- */
+  .app-footer {
+    background: #1D2240; color: #FFF4EC; text-align: center;
+    padding: 16px; font-size: 12px; line-height: 1.6; margin-top: auto;
+  }
+  .app-footer strong { color: #F37021; }
+
+  /* ---------- FOOTER (impression) ---------- */
+  .print-footer { display: none; }
+
+  /* ---------- LAYOUT ---------- */
+  main { flex: 1; padding: 24px 32px; max-width: 1700px; width: 100%; margin: 0 auto; }
+  .card {
+    background: #FFFFFF; border: 1px solid #E3E3E3; border-radius: 10px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06); padding: 24px; margin-bottom: 20px;
+  }
+  .hidden { display: none !important; }
+
+  /* ---------- IMPORT ZONE ---------- */
+  .import-zone {
+    border: 2px dashed #F37021; border-radius: 10px; background: #FFF4EC;
+    padding: 60px 20px; text-align: center; cursor: pointer; transition: background 0.15s ease;
+  }
+  .import-zone:hover, .import-zone.dragover { background: #FFE6D3; }
+  .import-zone h2 { color: #1D2240; font-size: 20px; margin-bottom: 8px; }
+  .import-zone p { color: #555; font-size: 13px; margin-bottom: 18px; }
+  .import-zone .formats { font-size: 11px; color: #888; margin-top: 14px; letter-spacing: 0.5px; }
+  input[type=file] { display: none; }
+
+  /* ---------- BUTTONS ---------- */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px; border: none; border-radius: 6px;
+    padding: 10px 18px; font-size: 13px; font-weight: 700; cursor: pointer;
+    letter-spacing: 0.3px; transition: transform 0.06s ease, opacity 0.15s ease; white-space: nowrap;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: #F37021; color: #FFFFFF; }
+  .btn-primary:hover { background: #D9601A; }
+  .btn-outline { background: #FFFFFF; color: #1D2240; border: 1.5px solid #1D2240; }
+  .btn-outline:hover { background: #1D2240; color: #FFFFFF; }
+  .btn-navy { background: #1D2240; color: #FFF4EC; }
+  .btn-navy:hover { background: #141729; }
+  .btn-ghost { background: transparent; color: #DC2626; border: 1.5px solid #DC2626; }
+  .btn-ghost:hover { background: #DC2626; color: #FFFFFF; }
+  .btn-sm { padding: 7px 12px; font-size: 11px; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ---------- MAPPING ---------- */
+  .mapping-card h2 { color: #DC2626; font-size: 18px; margin-bottom: 6px; }
+  .mapping-card p.desc { font-size: 13px; color: #555; margin-bottom: 18px; }
+  .mapping-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
+  .mapping-field label {
+    display: block; font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.5px; color: #1D2240; font-weight: 700; margin-bottom: 6px;
+  }
+  .mapping-field select {
+    width: 100%; padding: 9px 10px; border-radius: 6px;
+    border: 1.5px solid #CCCCCC; font-size: 13px; background: #FFFFFF; color: #111111;
+  }
+  .mapping-field.detected select { border-color: #16A34A; }
+  .mapping-field .status { font-size: 10px; margin-top: 4px; font-weight: 700; }
+  .mapping-field.detected .status { color: #16A34A; }
+  .mapping-field.missing .status { color: #DC2626; }
+
+  /* ---------- KPI BAR ---------- */
+  .kpi-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 18px; }
+  .kpi-item {
+    background: #FFFFFF; border: 1px solid #E3E3E3; border-radius: 8px;
+    padding: 14px 12px; text-align: center; border-top: 3px solid #F37021;
+  }
+  .kpi-item .value { font-size: 22px; font-weight: 800; color: #1D2240; }
+  .kpi-item .label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #777; margin-top: 4px; }
+
+  /* ---------- SEARCH BAR ---------- */
+  .search-bar {
+    display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;
+    background: #FFFFFF; border: 1px solid #E3E3E3; border-radius: 8px; padding: 14px; margin-bottom: 18px;
+  }
+  .search-bar .field { flex: 1; min-width: 180px; position: relative; }
+  .search-bar label { display: block; font-size: 10px; text-transform: uppercase; color: #1D2240; font-weight: 700; margin-bottom: 5px; }
+  .search-bar input {
+    width: 100%; padding: 9px 10px; border-radius: 6px; border: 1.5px solid #CCCCCC; font-size: 13px;
+  }
+  .search-bar input:focus { outline: none; border-color: #F37021; }
+  .search-hint { font-size: 10px; color: #999; margin-top: 8px; }
+
+  /* ---------- AUTOCOMPLETE DROPDOWN ---------- */
+  .autocomplete-list {
+    position: absolute; top: 100%; left: 0; right: 0; z-index: 200;
+    background: #FFFFFF; border: 1.5px solid #F37021; border-top: none;
+    border-radius: 0 0 6px 6px; max-height: 260px; overflow-y: auto;
+    box-shadow: 0 6px 14px rgba(0,0,0,0.15);
+  }
+  .autocomplete-item {
+    padding: 8px 10px; font-size: 12.5px; cursor: pointer; border-bottom: 1px solid #F0F0F0;
+    display: flex; justify-content: space-between; gap: 10px;
+  }
+  .autocomplete-item:last-child { border-bottom: none; }
+  .autocomplete-item:hover, .autocomplete-item.active { background: #FFF4EC; }
+  .autocomplete-item .ac-code { font-weight: 800; color: #1D2240; white-space: nowrap; }
+  .autocomplete-item .ac-desc { color: #666; font-size: 11.5px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .autocomplete-item .ac-meta { color: #999; font-size: 10.5px; white-space: nowrap; }
+  .autocomplete-empty { padding: 10px; font-size: 12px; color: #999; text-align: center; }
+
+  /* ---------- MULTI-RESULT LIST ---------- */
+  .result-list { list-style: none; margin-top: 10px; }
+  .result-list li {
+    padding: 10px 14px; border: 1px solid #E3E3E3; border-radius: 6px; margin-bottom: 6px;
+    cursor: pointer; display: flex; justify-content: space-between; gap: 10px; font-size: 13px;
+  }
+  .result-list li:hover { border-color: #F37021; background: #FFF4EC; }
+  .result-list li .rl-main { font-weight: 800; color: #1D2240; }
+  .result-list li .rl-sub { color: #777; font-size: 11.5px; }
+  .ignored-notice { font-size: 11px; color: #DC2626; margin-bottom: 12px; }
+
+  /* ---------- TABS ---------- */
+  .tabs { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+  .tab-btn {
+    background: #FFFFFF; border: 1.5px solid #1D2240; color: #1D2240;
+    padding: 10px 22px; border-radius: 6px; font-weight: 700; font-size: 13px; cursor: pointer;
+  }
+  .tab-btn.active { background: #1D2240; color: #FFF4EC; }
+  .tab-actions { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+
+  /* ---------- RACKS ---------- */
+  .rack-block { background: #FFFFFF; border: 1px solid #E3E3E3; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+  .rack-title {
+    background: #1D2240; color: #FFF4EC; font-weight: 800; font-size: 14px;
+    padding: 6px 14px; border-radius: 5px; display: inline-block; margin-bottom: 12px; letter-spacing: 0.5px;
+  }
+  .level-row { display: flex; align-items: center; margin-bottom: 6px; }
+  .level-label { width: 70px; flex-shrink: 0; font-size: 11px; font-weight: 700; color: #1D2240; text-transform: uppercase; }
+  .level-cells { display: flex; flex-wrap: wrap; gap: 4px; flex: 1; }
+
+  .bin-cell {
+    width: 74px; min-height: 74px; border: 1px solid #BBBBBB; border-radius: 4px;
+    font-size: 9px; text-align: center; padding: 3px 2px;
+    display: flex; flex-direction: column; justify-content: space-between; background: #FFFFFF;
+  }
+  .bin-cell .bin-code { font-weight: 800; font-size: 8.5px; color: #1D2240; }
+  .bin-cell .bin-hu-big { font-size: 22px; font-weight: 800; line-height: 1; color: #1D2240; }
+  .bin-cell .bin-art { font-size: 8px; color: #333333; }
+  .bin-cell .bin-check { border: 1px solid #999999; background: #FFFFFF; height: 13px; margin-top: 1px; border-radius: 2px; }
+
+  .bin-cell.hu-0 { background: #16A34A; }
+  .bin-cell.hu-0 .bin-code, .bin-cell.hu-0 .bin-hu-big, .bin-cell.hu-0 .bin-art { color: #FFFFFF; }
+  .bin-cell.hu-low { background: #DBEAFE; }
+  .bin-cell.hu-low .bin-code, .bin-cell.hu-low .bin-hu-big, .bin-cell.hu-low .bin-art { color: #1D2240; }
+  .bin-cell.hu-mid { background: #F37021; }
+  .bin-cell.hu-mid .bin-code, .bin-cell.hu-mid .bin-hu-big, .bin-cell.hu-mid .bin-art { color: #FFFFFF; }
+  .bin-cell.hu-high { background: #DC2626; }
+  .bin-cell.hu-high .bin-code, .bin-cell.hu-high .bin-hu-big, .bin-cell.hu-high .bin-art { color: #FFFFFF; }
+
+  .bin-cell.dim { opacity: 0.15; }
+  .bin-cell.highlight { outline: 2px solid #F37021; outline-offset: -1px; }
+
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; font-size: 11px; color: #333; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 14px; height: 14px; border-radius: 3px; display: inline-block; border: 1px solid #ccc; }
+
+  /* ---------- TABLES ---------- */
+  .data-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .data-table th {
+    background: #1D2240; color: #FFF4EC; text-align: left; padding: 10px 12px; font-size: 10.5px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .data-table td { padding: 8px 12px; border-bottom: 1px solid #EEEEEE; }
+  .data-table tr:nth-child(even) { background: #FAFAFA; }
+  .data-table tr.dim { display: none; }
+
+  .kv-table { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
+  .kv-table td { padding: 10px 14px; border: 1px solid #E3E3E3; font-size: 13px; }
+  .kv-table td.k { background: #FFF4EC; font-weight: 700; color: #1D2240; width: 220px; }
+
+  .detail-title { font-size: 16px; font-weight: 800; color: #1D2240; margin-bottom: 4px; }
+  .detail-sub { font-size: 12px; color: #777; margin-bottom: 16px; }
+
+  /* ---------- PRINT HEADER (visible seulement en impression) ---------- */
+  .print-header { display: none; }
+  .empty-state { text-align: center; padding: 40px; color: #888; font-size: 13px; }
+
+  /* ============================================================
+     PRINT STYLES
+     ============================================================ */
+  @media print {
+    @page { size: A4 landscape; margin: 8mm; }
+    body.print-mode .no-print { display: none !important; }
+
+    body.print-mode .print-header {
+      display: flex; justify-content: space-between; font-size: 11px;
+      border-bottom: 2px solid #1D2240; padding-bottom: 6px; margin-bottom: 10px;
+    }
+    body.print-mode .print-footer {
+      display: block; margin-top: 10px; padding-top: 6px; border-top: 1px solid #ccc;
+      font-size: 10px; color: #1D2240; text-align: center; line-height: 1.5;
+    }
+    body.print-mode .card { box-shadow: none; border: none; padding: 0; }
+    body.print-mode .rack-block { break-inside: avoid; border: 1px solid #999; }
+    body.print-mode .bin-cell { border: 1px solid #666; }
+
+    body.print-mode section[data-view] .print-page { page-break-after: always; }
+    body.print-mode section[data-view] .print-page:last-child { page-break-after: auto; }
+
+    body.print-mode[data-print-target="MP"] section[data-view="PF"],
+    body.print-mode[data-print-target="MP"] section[data-view="OBD"],
+    body.print-mode[data-print-target="MP"] section[data-view="OTHER"],
+    body.print-mode[data-print-target="MP"] #searchResultView { display: none !important; }
+    body.print-mode[data-print-target="PF"] section[data-view="MP"],
+    body.print-mode[data-print-target="PF"] section[data-view="OBD"],
+    body.print-mode[data-print-target="PF"] section[data-view="OTHER"],
+    body.print-mode[data-print-target="PF"] #searchResultView { display: none !important; }
+    body.print-mode[data-print-target="OBD"] section[data-view="MP"],
+    body.print-mode[data-print-target="OBD"] section[data-view="PF"],
+    body.print-mode[data-print-target="OBD"] section[data-view="OTHER"],
+    body.print-mode[data-print-target="OBD"] #searchResultView { display: none !important; }
+    body.print-mode[data-print-target="OTHER"] section[data-view="MP"],
+    body.print-mode[data-print-target="OTHER"] section[data-view="PF"],
+    body.print-mode[data-print-target="OTHER"] section[data-view="OBD"],
+    body.print-mode[data-print-target="OTHER"] #searchResultView { display: none !important; }
+    body.print-mode[data-print-target="SEARCH"] section[data-view] { display: none !important; }
+  }
+
+  @media (max-width: 900px) {
+    .mapping-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<header class="app-header no-print">
+  <div class="header-left">
+    <div class="brand-mark">AZ</div>
+    <div class="titles">
+      <h1>AZOUMAG INVENTORY SHEET GENERATOR PRO V2</h1>
+      <div class="subtitle">SAP Inventory Planning &amp; Counting Tool</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <button class="btn btn-outline" id="btnReset">Nouveau Fichier</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- ============ IMPORT ============ -->
+  <section id="importSection" class="card">
+    <div class="import-zone" id="dropZone">
+      <h2>Import SAP Inventory File</h2>
+      <p>Drag &amp; Drop <strong>or</strong> <span style="color:#F37021; text-decoration:underline;">Browse File</span></p>
+      <button class="btn btn-primary" id="btnBrowse">Import SAP Inventory File</button>
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+      <div class="formats">FORMATS ACCEPTÉS : .XLSX &nbsp;·&nbsp; .XLS &nbsp;·&nbsp; .CSV</div>
+    </div>
+  </section>
+
+  <!-- ============ MANUAL MAPPING ============ -->
+  <section id="mappingSection" class="card mapping-card hidden">
+    <h2>Manual Mapping Required</h2>
+    <p class="desc">Certaines colonnes n'ont pas été détectées automatiquement. Sélectionnez-les manuellement ci-dessous.</p>
+    <div class="mapping-grid" id="mappingGrid"></div>
+    <button class="btn btn-primary" id="btnValidateMapping">Validate Mapping</button>
+  </section>
+
+  <!-- ============ DASHBOARD ============ -->
+  <section id="dashboardSection" class="hidden">
+
+    <div class="kpi-bar no-print" id="kpiBar"></div>
+    <div class="ignored-notice no-print hidden" id="ignoredNotice"></div>
+
+    <div class="search-bar no-print">
+      <div class="field">
+        <label>Recherche Bin</label>
+        <input type="text" id="searchBin" placeholder="Ex: A-0-1" autocomplete="off">
+        <div class="autocomplete-list hidden" id="acBin"></div>
+      </div>
+      <div class="field">
+        <label>Recherche Article (Référence ou Description)</label>
+        <input type="text" id="searchArticle" placeholder="Ex: 386R ou 1543A ou mot de la description" autocomplete="off">
+        <div class="autocomplete-list hidden" id="acArticle"></div>
+      </div>
+      <div class="field">
+        <label>Recherche Rack</label>
+        <input type="text" id="searchRack" placeholder="Ex: A ou K0" autocomplete="off">
+        <div class="autocomplete-list hidden" id="acRack"></div>
+      </div>
+      <button class="btn btn-outline btn-sm" id="btnClearSearch">Réinitialiser</button>
+    </div>
+
+    <div class="tabs no-print" id="tabsBar">
+      <button class="tab-btn active" data-tab="MP">MP</button>
+      <button class="tab-btn" data-tab="PF">PF</button>
+      <button class="tab-btn" data-tab="OBD">OBD</button>
+      <button class="tab-btn" data-tab="OTHER">AUTRES</button>
+      <div class="tab-actions">
+        <button class="btn btn-navy" id="btnExportPdf">Export PDF</button>
+        <button class="btn btn-outline" id="btnPrint">Print</button>
+      </div>
+    </div>
+
+    <!-- ---- MP ---- -->
+    <section data-view="MP" id="viewMP">
+      <div class="print-header">
+        <span>Date : ______________________</span>
+        <span>Inventoriste : ______________________</span>
+        <span>Equipe : ______________________</span>
+      </div>
+      <div class="legend no-print">
+        <span><i style="background:#16A34A;"></i> HU = 0</span>
+        <span><i style="background:#DBEAFE;"></i> HU 1–20</span>
+        <span><i style="background:#F37021;"></i> HU 21–50</span>
+        <span><i style="background:#DC2626;"></i> HU &gt; 50</span>
+      </div>
+      <div id="rackContainerMP"></div>
+      <div class="print-footer"></div>
+    </section>
+
+    <!-- ---- PF ---- -->
+    <section data-view="PF" id="viewPF" class="hidden">
+      <div class="print-header">
+        <span>Date : ______________________</span>
+        <span>Inventoriste : ______________________</span>
+        <span>Equipe : ______________________</span>
+      </div>
+      <div class="legend no-print">
+        <span><i style="background:#16A34A;"></i> HU = 0</span>
+        <span><i style="background:#DBEAFE;"></i> HU 1–20</span>
+        <span><i style="background:#F37021;"></i> HU 21–50</span>
+        <span><i style="background:#DC2626;"></i> HU &gt; 50</span>
+      </div>
+      <div id="rackContainerPF"></div>
+      <div class="print-footer"></div>
+    </section>
+
+    <!-- ---- OBD ---- -->
+    <section data-view="OBD" id="viewOBD" class="hidden">
+      <div class="print-header">
+        <span>Date : ______________________</span>
+        <span>Inventoriste : ______________________</span>
+        <span>Equipe : ______________________</span>
+      </div>
+      <div class="card print-page">
+        <table class="data-table" id="obdTable">
+          <thead><tr><th>tpa</th><th>Article</th><th>Quantité Totale</th></tr></thead>
+          <tbody id="obdTableBody"></tbody>
+        </table>
+        <div class="print-footer"></div>
+      </div>
+    </section>
+
+    <!-- ---- AUTRES (bins hors structure MP/PF/OBD : bobines, codes divers...) ---- -->
+    <section data-view="OTHER" id="viewOTHER" class="hidden">
+      <div class="print-header">
+        <span>Date : ______________________</span>
+        <span>Inventoriste : ______________________</span>
+        <span>Equipe : ______________________</span>
+      </div>
+      <div class="card print-page">
+        <div class="detail-sub no-print" style="margin-bottom:12px;">Emplacements ne correspondant ni à la structure MP, ni PF, ni OBD (ex: bobines, zones diverses). Cliquez sur une ligne pour voir le détail.</div>
+        <table class="data-table" id="otherTable">
+          <thead><tr><th>Bin</th><th>HU</th><th>ART</th><th>Batchs</th><th>Master HU</th><th>Quantité Totale</th></tr></thead>
+          <tbody id="otherTableBody"></tbody>
+        </table>
+        <div class="print-footer"></div>
+      </div>
+    </section>
+
+    <!-- ---- SEARCH RESULT (Bin / Article / Rack) ---- -->
+    <section id="searchResultView" class="hidden">
+      <div class="print-header">
+        <span>Date : ______________________</span>
+        <span>Inventoriste : ______________________</span>
+        <span>Equipe : ______________________</span>
+      </div>
+
+      <div class="tab-actions no-print" style="margin-bottom:14px;">
+        <button class="btn btn-navy btn-sm" id="btnExportSearchPdf">Export Search Result PDF</button>
+        <button class="btn btn-outline btn-sm" id="btnPrintSearch">Print Search Result</button>
+      </div>
+
+      <div class="card print-page" id="searchResultCard">
+        <!-- injecté dynamiquement : BIN DETAILS / ARTICLE DETAILS / rack filtré -->
+        <div class="print-footer"></div>
+      </div>
+    </section>
+
+  </section>
+
+</main>
+
+<footer class="app-footer no-print">
+  <div><strong>AZOUMAG © 2026</strong> — The Ultimate Online Solutions</div>
+  <div>All Rights Reserved 2026</div>
+  <div>Generated by AZOUMAG INVENTORY SHEET GENERATOR PRO V2</div>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ======================================================================
+     CONFIGURATION DES RACKS
+     ====================================================================== */
+  var MP_RACKS = ["A","B0","B1","C0","C1","D0","D1","E0","E1","F0","F1","G0","G1","H0","H1","I"];
+  var MP_LEVELS = [4,3,2,1,0];
+  var MP_POSITIONS = 15;
+
+  var PF_RACKS = ["J","K0","K1","L0","L1","M0","M1","N"];
+  var PF_LEVELS = [3,2,1,0];
+  var PF_POSITIONS = 21;
+
+  var OBD_tpa = ["tpa01","tpa02","tpa3","tpa04","tpa05","tpa06"];
+
+  // Univers complet et statique de tous les emplacements (Storage Bin) possibles selon la structure
+  // MP/PF — indépendant du fichier importé, calculé une seule fois. Sert à la recherche/autocomplete
+  // pour que TOUS les bins soient trouvables, occupés ou vides.
+  function buildBinUniverse(){
+    var keys = [];
+    var meta = new Map();
+    MP_RACKS.forEach(function(r){ MP_LEVELS.forEach(function(l){ for (var p=1;p<=MP_POSITIONS;p++){ var k=r+"-"+l+"-"+p; keys.push(k); meta.set(k,{rack:r,level:l,pos:p,section:"MP"}); } }); });
+    PF_RACKS.forEach(function(r){ PF_LEVELS.forEach(function(l){ for (var p=1;p<=PF_POSITIONS;p++){ var k=r+"-"+l+"-"+p; keys.push(k); meta.set(k,{rack:r,level:l,pos:p,section:"PF"}); } }); });
+    return { keys: keys, meta: meta };
+  }
+  var BIN_UNIVERSE = buildBinUniverse();
+
+  var COLUMN_KEYWORDS = {
+    bin: ["storage bin","storagebin","bin","lgpla"],
+    material: ["material number","material","article","product"],
+    quantity: ["available stock","quantity","qty","stock"],
+    batch: ["batch number","batch","lot"],
+    highestLevelHu: ["highest level hu","highest-level hu","highest hu","parent hu","master hu","top hu"],
+    hu: ["handling unit","hu number","huid","hu"],
+    description: ["product short description","short description","material description","description","desc"]
+  };
+  // Ordre de détection : les champs les plus spécifiques d'abord pour éviter les collisions (ex: "HU" vs "Highest Level HU")
+  var REQUIRED_FIELDS = ["bin","material","quantity","batch","highestLevelHu","hu"];
+  var DETECTION_ORDER = ["bin","material","quantity","batch","highestLevelHu","hu","description"];
+
+  /* ======================================================================
+     ETAT GLOBAL
+     ====================================================================== */
+  var state = {
+    headers: [],
+    rows: [],
+    mapping: { bin: null, material: null, quantity: null, batch: null, highestLevelHu: null, hu: null, description: null },
+    allLines: [],           // lignes brutes MP+PF : {bin, material, hu, highestLevelHu, batch, quantity, rack, level, pos, section}
+    binIndex: new Map(),    // bin -> array de lignes
+    materialIndex: new Map(), // material -> array de lignes
+    binAgg: new Map(),      // bin -> {count, materials:Set, batches:Set, masterHus:Set, qtySum, rack, level, pos, section}
+    materialAgg: new Map(), // material -> {bins:Set, count, batches:Set, masterHus:Set, qtySum, description}
+    obdData: new Map(),
+    binKeyList: [],         // liste triée des bins réellement présents dans le fichier (pour autocomplete)
+    articleList: [],        // liste [{code, description}] pour autocomplete (référence + description)
+    ignoredLines: 0,        // lignes dont le Storage Bin n'a pas pu être classé (MP/PF/OBD)
+    activeTab: "MP",
+    searchMode: null        // null | "bin" | "article" | "rack"
+  };
+
+  /* ======================================================================
+     UTILITAIRES
+     ====================================================================== */
+  function norm(s){ return String(s || "").toLowerCase().trim().replace(/[_\-\.]/g," ").replace(/\s+/g," "); }
+
+  function detectColumn(headers, keywords, usedIndices){
+    for (var i=0;i<headers.length;i++){
+      if (usedIndices.indexOf(i) !== -1) continue;
+      var h = norm(headers[i]);
+      for (var k=0;k<keywords.length;k++){
+        var kw = keywords[k];
+        var isShort = kw.length <= 3;
+        var match = false;
+        if (isShort){
+          var tokens = h.split(" ");
+          match = tokens.indexOf(kw) !== -1 || h === kw;
+        } else {
+          match = h.indexOf(kw) !== -1;
+        }
+        if (match) return i;
+      }
+    }
+    return null;
+  }
+
+  function toNumber(v){
+    if (v === null || v === undefined || v === "") return 0;
+    var n = parseFloat(String(v).replace(",", "."));
+    return isNaN(n) ? 0 : n;
+  }
+
+  function formatNum(n){
+    if (Number.isInteger(n)) return String(n);
+    return (Math.round(n * 100) / 100).toString();
+  }
+
+  function nowStamp(){
+    var d = new Date();
+    function pad(x){ return String(x).padStart(2,"0"); }
+    return d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate()) + " " +
+           pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
+  }
+
+  function stampPrintFooters(){
+    var text = "Generated by AZOUMAG INVENTORY SHEET GENERATOR at " + nowStamp() +
+      "<br>AZOUMAG © 2026 — The Ultimate Online Solutions — All Rights Reserved 2026";
+    document.querySelectorAll(".print-footer").forEach(function(el){ el.innerHTML = text; });
+  }
+
+  /* ======================================================================
+     IMPORT FICHIER
+     ====================================================================== */
+  var dropZone = document.getElementById("dropZone");
+  var fileInput = document.getElementById("fileInput");
+
+  document.getElementById("btnBrowse").addEventListener("click", function(){ fileInput.click(); });
+  dropZone.addEventListener("click", function(e){ if (e.target.id !== "btnBrowse") fileInput.click(); });
+  dropZone.addEventListener("dragover", function(e){ e.preventDefault(); dropZone.classList.add("dragover"); });
+  dropZone.addEventListener("dragleave", function(){ dropZone.classList.remove("dragover"); });
+  dropZone.addEventListener("drop", function(e){
+    e.preventDefault(); dropZone.classList.remove("dragover");
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener("change", function(e){
+    if (e.target.files && e.target.files[0]) handleFile(e.target.files[0]);
+  });
+
+  function handleFile(file){
+    var reader = new FileReader();
+    reader.onload = function(evt){
+      var data = new Uint8Array(evt.target.result);
+      var wb = XLSX.read(data, { type: "array" });
+      var ws = wb.Sheets[wb.SheetNames[0]];
+      var json = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" });
+      if (!json.length){ alert("Fichier vide ou illisible."); return; }
+      state.headers = json[0].map(function(h){ return String(h); });
+      state.rows = json.slice(1).filter(function(r){ return r.some(function(c){ return String(c).trim() !== ""; }); });
+
+      var used = [];
+      DETECTION_ORDER.forEach(function(field){
+        var idx = detectColumn(state.headers, COLUMN_KEYWORDS[field], used);
+        state.mapping[field] = idx;
+        if (idx !== null) used.push(idx);
+      });
+
+      var missing = REQUIRED_FIELDS.filter(function(f){ return state.mapping[f] === null; });
+      if (missing.length){
+        showMappingUI();
+      } else {
+        proceedToDashboard();
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  /* ======================================================================
+     MAPPING MANUEL
+     ====================================================================== */
+  var FIELD_LABELS = {
+    bin: "Storage Bin", material: "Material", quantity: "Quantity",
+    batch: "Batch", hu: "HU", highestLevelHu: "Highest Level HU",
+    description: "Description (optionnel)"
+  };
+
+  function showMappingUI(){
+    document.getElementById("importSection").classList.add("hidden");
+    var mappingSection = document.getElementById("mappingSection");
+    mappingSection.classList.remove("hidden");
+    var grid = document.getElementById("mappingGrid");
+    grid.innerHTML = "";
+
+    DETECTION_ORDER.forEach(function(field){
+      var isRequired = REQUIRED_FIELDS.indexOf(field) !== -1;
+      var isDetected = state.mapping[field] !== null;
+      var wrap = document.createElement("div");
+      wrap.className = "mapping-field " + (isDetected ? "detected" : (isRequired ? "missing" : "detected"));
+      var label = document.createElement("label");
+      label.textContent = FIELD_LABELS[field];
+      var select = document.createElement("select");
+      select.id = "mapSelect_" + field;
+      var optNone = document.createElement("option");
+      optNone.value = ""; optNone.textContent = isRequired ? "-- Sélectionner une colonne --" : "-- Aucune --";
+      select.appendChild(optNone);
+      state.headers.forEach(function(h, idx){
+        var opt = document.createElement("option");
+        opt.value = idx; opt.textContent = h || ("Colonne " + (idx+1));
+        if (state.mapping[field] === idx) opt.selected = true;
+        select.appendChild(opt);
+      });
+      var status = document.createElement("div");
+      status.className = "status";
+      status.textContent = isDetected ? "Détectée automatiquement" : (isRequired ? "Non détectée — choix requis" : "Non détectée — facultatif");
+      wrap.appendChild(label); wrap.appendChild(select); wrap.appendChild(status);
+      grid.appendChild(wrap);
+    });
+  }
+
+  document.getElementById("btnValidateMapping").addEventListener("click", function(){
+    var ok = true;
+    DETECTION_ORDER.forEach(function(field){
+      var sel = document.getElementById("mapSelect_" + field);
+      var val = sel.value;
+      var isRequired = REQUIRED_FIELDS.indexOf(field) !== -1;
+      if (val === ""){
+        if (isRequired){ ok = false; sel.style.borderColor = "#DC2626"; }
+        else { state.mapping[field] = null; }
+      } else {
+        state.mapping[field] = parseInt(val, 10); sel.style.borderColor = "#16A34A";
+      }
+    });
+    if (!ok){ alert("Veuillez sélectionner toutes les colonnes requises."); return; }
+    document.getElementById("mappingSection").classList.add("hidden");
+    proceedToDashboard();
+  });
+
+  /* ======================================================================
+     TRAITEMENT DES DONNEES
+     ====================================================================== */
+  function parseBinCode(binRaw){
+    // Tolère les variations réelles des exports SAP : espaces, zéros non significatifs (A-00-01 -> A-0-1),
+    // séparateurs multiples, casse mixte — sans jamais changer la logique métier de classification.
+    var raw = String(binRaw || "").trim().toUpperCase();
+    if (!raw) return null; // Storage Bin vide -> ligne ignorée
+    if (OBD_tpa.indexOf(raw) !== -1) return { section: "OBD", tpa: raw };
+
+    var parts = raw.split("-").map(function(p){ return p.trim(); }).filter(function(p){ return p !== ""; });
+    if (parts.length === 3){
+      var rack = parts[0];
+      var levelNum = parseInt(parts[1], 10);
+      var posNum = parseInt(parts[2], 10);
+      if (!isNaN(levelNum) && !isNaN(posNum)){
+        if (MP_RACKS.indexOf(rack) !== -1 && MP_LEVELS.indexOf(levelNum) !== -1 && posNum >= 1 && posNum <= MP_POSITIONS){
+          return { section: "MP", rack: rack, level: levelNum, pos: posNum, bin: rack + "-" + levelNum + "-" + posNum };
+        }
+        if (PF_RACKS.indexOf(rack) !== -1 && PF_LEVELS.indexOf(levelNum) !== -1 && posNum >= 1 && posNum <= PF_POSITIONS){
+          return { section: "PF", rack: rack, level: levelNum, pos: posNum, bin: rack + "-" + levelNum + "-" + posNum };
+        }
+      }
+    }
+
+    // Tout emplacement qui ne correspond ni à MP, ni à PF, ni à OBD (bobines, zones diverses, codes libres...)
+    // -> section AUTRES, avec le bin utilisé tel quel comme clé.
+    return { section: "OTHER", rack: null, level: null, pos: null, bin: raw };
+  }
+
+  function processData(){
+    state.allLines = [];
+    state.binIndex = new Map();
+    state.materialIndex = new Map();
+    state.binAgg = new Map();
+    state.materialAgg = new Map();
+    state.obdData = new Map();
+    state.ignoredLines = 0;
+
+    var m = state.mapping;
+    var hasDescription = m.description !== null;
+
+    state.rows.forEach(function(row){
+      var binRaw = row[m.bin];
+      var material = String(row[m.material] || "").trim();
+      var qty = toNumber(row[m.quantity]);
+      var batch = String(row[m.batch] || "").trim();
+      var hu = String(row[m.hu] || "").trim();
+      var highestLevelHu = String(row[m.highestLevelHu] || "").trim();
+      var description = hasDescription ? String(row[m.description] || "").trim() : "";
+
+      var parsed = parseBinCode(binRaw);
+      if (!parsed){
+        state.ignoredLines++; // Storage Bin vide
+        return;
+      }
+
+      if (parsed.section === "OBD"){
+        var key = parsed.tpa + "|" + material;
+        if (!state.obdData.has(key)) state.obdData.set(key, { tpa: parsed.tpa, material: material, qty: 0 });
+        state.obdData.get(key).qty += qty;
+        return;
+      }
+
+      var line = {
+        bin: parsed.bin, material: material, hu: hu, highestLevelHu: highestLevelHu,
+        batch: batch, quantity: qty, description: description,
+        rack: parsed.rack, level: parsed.level, pos: parsed.pos, section: parsed.section
+      };
+      state.allLines.push(line);
+
+      if (!state.binIndex.has(line.bin)) state.binIndex.set(line.bin, []);
+      state.binIndex.get(line.bin).push(line);
+
+      if (material){
+        if (!state.materialIndex.has(material)) state.materialIndex.set(material, []);
+        state.materialIndex.get(material).push(line);
+      }
+
+      if (!state.binAgg.has(line.bin)){
+        state.binAgg.set(line.bin, {
+          count: 0, materials: new Set(), batches: new Set(), masterHus: new Set(), qtySum: 0,
+          rack: parsed.rack, level: parsed.level, pos: parsed.pos, section: parsed.section
+        });
+      }
+      var ba = state.binAgg.get(line.bin);
+      ba.count += 1; // HU = nombre de lignes ayant le même Storage Bin
+      if (material) ba.materials.add(material);
+      if (batch) ba.batches.add(batch);
+      if (highestLevelHu) ba.masterHus.add(highestLevelHu);
+      ba.qtySum += qty;
+
+      if (material){
+        if (!state.materialAgg.has(material)){
+          state.materialAgg.set(material, { bins: new Set(), count: 0, batches: new Set(), masterHus: new Set(), qtySum: 0, description: "" });
+        }
+        var ma = state.materialAgg.get(material);
+        ma.bins.add(line.bin);
+        ma.count += 1;
+        if (batch) ma.batches.add(batch);
+        if (highestLevelHu) ma.masterHus.add(highestLevelHu);
+        ma.qtySum += qty;
+        if (description && !ma.description) ma.description = description;
+      }
+    });
+
+    // Index de recherche (autocomplete) — construits une seule fois après le traitement complet
+    var otherBinKeys = [];
+    state.binAgg.forEach(function(agg, key){ if (agg.section === "OTHER") otherBinKeys.push(key); });
+    otherBinKeys.sort();
+    state.binKeyList = BIN_UNIVERSE.keys.concat(otherBinKeys); // MP/PF (grille complète) + AUTRES (bins réels du fichier)
+    state.articleList = Array.from(state.materialAgg.entries()).map(function(entry){
+      return { code: entry[0], description: entry[1].description || "" };
+    }).sort(function(a,b){ return a.code.localeCompare(b.code); });
+  }
+
+  /* ======================================================================
+     RENDU DASHBOARD
+     ====================================================================== */
+  function proceedToDashboard(){
+    processData();
+    document.getElementById("importSection").classList.add("hidden");
+    document.getElementById("dashboardSection").classList.remove("hidden");
+    renderKpis();
+    renderRacks("MP");
+    renderRacks("PF");
+    renderObd();
+    renderOther();
+    switchTab("MP");
+
+    var notice = document.getElementById("ignoredNotice");
+    if (state.ignoredLines > 0){
+      notice.textContent = state.ignoredLines + " ligne(s) ignorée(s) : Storage Bin vide.";
+      notice.classList.remove("hidden");
+    } else {
+      notice.classList.add("hidden");
+    }
+  }
+
+  function huColorClass(hu){
+    if (hu === 0) return "hu-0";
+    if (hu <= 20) return "hu-low";
+    if (hu <= 50) return "hu-mid";
+    return "hu-high";
+  }
+
+  function binCellHtml(binKey){
+    var entry = state.binAgg.get(binKey);
+    var hu = entry ? entry.count : 0;
+    var art = entry ? entry.materials.size : 0;
+    var cls = "bin-cell " + huColorClass(hu);
+    return '<div class="' + cls + '" data-bin="' + binKey + '" data-art="' + (entry ? Array.from(entry.materials).join(",") : "") + '">' +
+      '<div class="bin-code">' + binKey + '</div>' +
+      '<div class="bin-hu-big">' + hu + '</div>' +
+      '<div class="bin-art">ART: ' + art + '</div>' +
+      '<div class="bin-check"></div>' +
+    '</div>';
+  }
+
+  function renderRacks(section){
+    var racks = section === "MP" ? MP_RACKS : PF_RACKS;
+    var levels = section === "MP" ? MP_LEVELS : PF_LEVELS;
+    var positions = section === "MP" ? MP_POSITIONS : PF_POSITIONS;
+    var container = document.getElementById(section === "MP" ? "rackContainerMP" : "rackContainerPF");
+    var racksPerPage = section === "MP" ? 4 : 3;
+
+    var html = "";
+    racks.forEach(function(rack, ri){
+      if (ri % racksPerPage === 0){
+        if (ri > 0) html += "</div>";
+        html += '<div class="print-page">';
+      }
+      html += '<div class="rack-block" data-rack="' + rack + '">';
+      html += '<div class="rack-title">RACK ' + rack + '</div>';
+      levels.forEach(function(level){
+        html += '<div class="level-row"><div class="level-label">Niveau ' + level + '</div><div class="level-cells">';
+        for (var p = 1; p <= positions; p++){
+          html += binCellHtml(rack + "-" + level + "-" + p);
+        }
+        html += '</div></div>';
+      });
+      html += '</div>';
+      if (ri === racks.length - 1) html += "</div>";
+    });
+    container.innerHTML = html;
+  }
+
+  function renderObd(){
+    var tbody = document.getElementById("obdTableBody");
+    tbody.innerHTML = "";
+    var rowsArr = Array.from(state.obdData.values()).sort(function(a,b){
+      if (a.tpa !== b.tpa) return a.tpa.localeCompare(b.tpa);
+      return a.material.localeCompare(b.material);
+    });
+    if (!rowsArr.length){
+      tbody.innerHTML = '<tr><td colspan="3" class="empty-state">Aucune donnée OBD (tpa01–tpa06) détectée</td></tr>';
+      return;
+    }
+    rowsArr.forEach(function(r){
+      var tr = document.createElement("tr");
+      tr.innerHTML = '<td>' + r.tpa + '</td><td>' + r.material + '</td><td>' + formatNum(r.qty) + '</td>';
+      tbody.appendChild(tr);
+    });
+  }
+
+  function renderOther(){
+    var tbody = document.getElementById("otherTableBody");
+    tbody.innerHTML = "";
+    var entries = [];
+    state.binAgg.forEach(function(agg, key){ if (agg.section === "OTHER") entries.push([key, agg]); });
+    entries.sort(function(a,b){ return a[0].localeCompare(b[0]); });
+
+    if (!entries.length){
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Aucun bin "Autres" détecté (tout est classé en MP / PF / OBD)</td></tr>';
+      return;
+    }
+    entries.forEach(function(pair){
+      var key = pair[0], agg = pair[1];
+      var tr = document.createElement("tr");
+      tr.style.cursor = "pointer";
+      tr.innerHTML = '<td>' + key + '</td><td>' + agg.count + '</td><td>' + agg.materials.size + '</td><td>' +
+        agg.batches.size + '</td><td>' + agg.masterHus.size + '</td><td>' + formatNum(agg.qtySum) + '</td>';
+      tr.addEventListener("click", function(){ searchBinInput.value = key; showBinDetails(key); });
+      tbody.appendChild(tr);
+    });
+  }
+
+  function renderKpis(){
+    var totalHu = 0;
+    var binsVides = 0;
+    var binsOccupes = 0;
+    var binsAutres = 0;
+    var totalBatches = new Set();
+    var totalMasterHus = new Set();
+
+    var totalBins = BIN_UNIVERSE.keys.length;
+
+    BIN_UNIVERSE.keys.forEach(function(binKey){
+      var entry = state.binAgg.get(binKey);
+      if (!entry || entry.count === 0) binsVides++; else binsOccupes++;
+    });
+
+    // Totaux globaux (MP + PF + AUTRES) — l'OBD est comptabilisé séparément (tableau tpa dédié)
+    state.binAgg.forEach(function(entry){
+      totalHu += entry.count;
+      entry.batches.forEach(function(b){ totalBatches.add(b); });
+      entry.masterHus.forEach(function(mh){ totalMasterHus.add(mh); });
+      if (entry.section === "OTHER") binsAutres++;
+    });
+
+    var kpis = [
+      { label: "Total Articles", value: state.materialAgg.size },
+      { label: "Total HU", value: totalHu },
+      { label: "Total Bins", value: totalBins },
+      { label: "Bins Vides", value: binsVides },
+      { label: "Bins Occupés", value: binsOccupes },
+      { label: "Bins Autres", value: binsAutres },
+      { label: "Total Batchs", value: totalBatches.size },
+      { label: "Total Master HU", value: totalMasterHus.size }
+    ];
+
+    document.getElementById("kpiBar").innerHTML = kpis.map(function(k){
+      return '<div class="kpi-item"><div class="value">' + k.value + '</div><div class="label">' + k.label + '</div></div>';
+    }).join("");
+  }
+
+  /* ======================================================================
+     TABS
+     ====================================================================== */
+  function switchTab(tab){
+    state.activeTab = tab;
+    document.querySelectorAll(".tab-btn").forEach(function(b){ b.classList.toggle("active", b.getAttribute("data-tab") === tab); });
+    ["MP","PF","OBD","OTHER"].forEach(function(t){ document.getElementById("view" + t).classList.toggle("hidden", t !== tab); });
+    document.getElementById("searchResultView").classList.add("hidden");
+    document.getElementById("tabsBar").classList.remove("hidden");
+  }
+
+  document.querySelectorAll(".tab-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      clearSearchInputs();
+      state.searchMode = null;
+      switchTab(btn.getAttribute("data-tab"));
+    });
+  });
+
+  /* ======================================================================
+     RECHERCHE INTELLIGENTE (Bin / Article / Rack)
+     ====================================================================== */
+  var searchBinInput = document.getElementById("searchBin");
+  var searchArticleInput = document.getElementById("searchArticle");
+  var searchRackInput = document.getElementById("searchRack");
+  var acBin = document.getElementById("acBin");
+  var acArticle = document.getElementById("acArticle");
+  var acRack = document.getElementById("acRack");
+
+  var ALL_RACKS = MP_RACKS.concat(PF_RACKS);
+  var MAX_SUGGESTIONS = 20;
+
+  function clearSearchInputs(){
+    searchBinInput.value = ""; searchArticleInput.value = ""; searchRackInput.value = "";
+    hideAllDropdowns();
+  }
+  function hideAllDropdowns(){
+    acBin.classList.add("hidden"); acArticle.classList.add("hidden"); acRack.classList.add("hidden");
+  }
+
+  /* ---- Autocomplete générique ---- */
+  function renderDropdown(dropdownEl, items, onPick){
+    if (!items.length){
+      dropdownEl.innerHTML = '<div class="autocomplete-empty">Aucun résultat</div>';
+      dropdownEl.classList.remove("hidden");
+      return;
+    }
+    dropdownEl.innerHTML = items.map(function(it, idx){
+      return '<div class="autocomplete-item" data-idx="' + idx + '">' +
+        '<span class="ac-code">' + it.code + '</span>' +
+        (it.right ? '<span class="' + (it.rightClass || "ac-desc") + '">' + it.right + '</span>' : '') +
+      '</div>';
+    }).join("");
+    dropdownEl.classList.remove("hidden");
+    Array.prototype.forEach.call(dropdownEl.querySelectorAll(".autocomplete-item"), function(el){
+      el.addEventListener("click", function(){
+        onPick(items[parseInt(el.getAttribute("data-idx"), 10)]);
+        hideAllDropdowns();
+      });
+    });
+  }
+
+  searchBinInput.addEventListener("input", function(){
+    var q = searchBinInput.value.trim().toUpperCase();
+    if (!q){ hideAllDropdowns(); return; }
+    var matches = state.binKeyList.filter(function(b){ return b.indexOf(q) !== -1; }).slice(0, MAX_SUGGESTIONS);
+    var items = matches.map(function(b){
+      var agg = state.binAgg.get(b);
+      var hu = agg ? agg.count : 0;
+      var art = agg ? agg.materials.size : 0;
+      return { code: b, right: "HU: " + hu + " · ART: " + art, rightClass: "ac-meta" };
+    });
+    renderDropdown(acBin, items, function(it){ searchBinInput.value = it.code; showBinDetails(it.code); });
+  });
+
+  searchArticleInput.addEventListener("input", function(){
+    var q = searchArticleInput.value.trim().toLowerCase();
+    if (!q){ hideAllDropdowns(); return; }
+    var matches = state.articleList.filter(function(a){
+      return a.code.toLowerCase().indexOf(q) !== -1 || (a.description && a.description.toLowerCase().indexOf(q) !== -1);
+    }).slice(0, MAX_SUGGESTIONS);
+    var items = matches.map(function(a){ return { code: a.code, right: a.description || "" }; });
+    renderDropdown(acArticle, items, function(it){ searchArticleInput.value = it.code; showArticleDetails(it.code); });
+  });
+
+  searchRackInput.addEventListener("input", function(){
+    var q = searchRackInput.value.trim().toUpperCase();
+    if (!q){ hideAllDropdowns(); return; }
+    var matches = ALL_RACKS.filter(function(r){ return r.indexOf(q) !== -1; });
+    var items = matches.map(function(r){
+      var section = MP_RACKS.indexOf(r) !== -1 ? "MP" : "PF";
+      return { code: r, right: section, rightClass: "ac-meta" };
+    });
+    renderDropdown(acRack, items, function(it){ searchRackInput.value = it.code; showRackFilter([it.code]); });
+  });
+
+  document.addEventListener("click", function(e){
+    if (!e.target.closest(".field")) hideAllDropdowns();
+  });
+
+  /* ---- Recherche déclenchée (Entrée) : correspondance exacte, sinon repli sur résultats multiples ---- */
+  function runSearch(mode){
+    hideAllDropdowns();
+    if (mode === "bin"){
+      var binVal = searchBinInput.value.trim().toUpperCase();
+      if (!binVal) return;
+      searchArticleInput.value = ""; searchRackInput.value = "";
+      if (BIN_UNIVERSE.meta.has(binVal) || state.binAgg.has(binVal)){ showBinDetails(binVal); return; }
+      var binMatches = state.binKeyList.filter(function(b){ return b.indexOf(binVal) !== -1; });
+      if (binMatches.length === 1) showBinDetails(binMatches[0]);
+      else if (binMatches.length > 1) showBinMultiResults(binVal, binMatches);
+      else showBinDetails(binVal); // affiche le message "non trouvé"
+    } else if (mode === "article"){
+      var artVal = searchArticleInput.value.trim();
+      if (!artVal) return;
+      searchBinInput.value = ""; searchRackInput.value = "";
+      if (state.materialAgg.has(artVal)){ showArticleDetails(artVal); return; }
+      var artValLower = artVal.toLowerCase();
+      var artMatches = state.articleList.filter(function(a){
+        return a.code.toLowerCase().indexOf(artValLower) !== -1 || (a.description && a.description.toLowerCase().indexOf(artValLower) !== -1);
+      });
+      if (artMatches.length === 1) showArticleDetails(artMatches[0].code);
+      else if (artMatches.length > 1) showArticleMultiResults(artVal, artMatches);
+      else showArticleDetails(artVal); // affiche le message "non trouvé"
+    } else if (mode === "rack"){
+      var rackVal = searchRackInput.value.trim().toUpperCase();
+      if (!rackVal) return;
+      searchBinInput.value = ""; searchArticleInput.value = "";
+      if (ALL_RACKS.indexOf(rackVal) !== -1){ showRackFilter([rackVal]); return; }
+      var rackMatches = ALL_RACKS.filter(function(r){ return r.indexOf(rackVal) !== -1; });
+      if (rackMatches.length) showRackFilter(rackMatches);
+      else showRackFilter([rackVal]); // affiche le message "non trouvé"
+    }
+  }
+
+  searchBinInput.addEventListener("keydown", function(e){ if (e.key === "Enter") runSearch("bin"); if (e.key === "Escape") hideAllDropdowns(); });
+  searchArticleInput.addEventListener("keydown", function(e){ if (e.key === "Enter") runSearch("article"); if (e.key === "Escape") hideAllDropdowns(); });
+  searchRackInput.addEventListener("keydown", function(e){ if (e.key === "Enter") runSearch("rack"); if (e.key === "Escape") hideAllDropdowns(); });
+
+  function showBinMultiResults(query, matches){
+    var card = document.getElementById("searchResultCard");
+    var itemsHtml = matches.slice(0, 100).map(function(b){
+      var agg = state.binAgg.get(b);
+      var hu = agg ? agg.count : 0;
+      var art = agg ? agg.materials.size : 0;
+      return '<li data-bin="' + b + '"><span class="rl-main">' + b + '</span><span class="rl-sub">HU: ' + hu + ' · ART: ' + art + '</span></li>';
+    }).join("");
+    card.innerHTML =
+      '<div class="detail-title">RÉSULTATS BIN — "' + query + '"</div>' +
+      '<div class="detail-sub">' + matches.length + ' bin(s) correspondant(s). Cliquez pour voir le détail.</div>' +
+      '<ul class="result-list">' + itemsHtml + '</ul>' +
+      '<div class="print-footer"></div>';
+    Array.prototype.forEach.call(card.querySelectorAll(".result-list li"), function(li){
+      li.addEventListener("click", function(){ showBinDetails(li.getAttribute("data-bin")); });
+    });
+    showSearchView(); stampPrintFooters();
+  }
+
+  function showArticleMultiResults(query, matches){
+    var card = document.getElementById("searchResultCard");
+    var itemsHtml = matches.slice(0, 100).map(function(a){
+      return '<li data-code="' + a.code + '"><span class="rl-main">' + a.code + '</span><span class="rl-sub">' + (a.description || "") + '</span></li>';
+    }).join("");
+    card.innerHTML =
+      '<div class="detail-title">RÉSULTATS ARTICLE — "' + query + '"</div>' +
+      '<div class="detail-sub">' + matches.length + ' article(s) correspondant(s) (référence ou description). Cliquez pour voir le détail.</div>' +
+      '<ul class="result-list">' + itemsHtml + '</ul>' +
+      '<div class="print-footer"></div>';
+    Array.prototype.forEach.call(card.querySelectorAll(".result-list li"), function(li){
+      li.addEventListener("click", function(){ showArticleDetails(li.getAttribute("data-code")); });
+    });
+    showSearchView(); stampPrintFooters();
+  }
+
+  document.getElementById("btnClearSearch").addEventListener("click", function(){
+    clearSearchInputs();
+    state.searchMode = null;
+    switchTab(state.activeTab || "MP");
+  });
+
+  function showSearchView(){
+    state.searchMode = "active";
+    ["MP","PF","OBD","OTHER"].forEach(function(t){ document.getElementById("view" + t).classList.add("hidden"); });
+    document.getElementById("tabsBar").classList.add("hidden");
+    document.getElementById("searchResultView").classList.remove("hidden");
+  }
+
+  function showBinDetails(binKey){
+    var meta = BIN_UNIVERSE.meta.get(binKey);
+    var card = document.getElementById("searchResultCard");
+    var entry = state.binAgg.get(binKey);
+
+    if (!meta && !entry){
+      card.innerHTML = '<div class="empty-state">Aucune donnée trouvée pour le bin "' + binKey + '"</div><div class="print-footer"></div>';
+      showSearchView(); stampPrintFooters(); return;
+    }
+    // Bin "Autres" : pas de position de grille (rack/niveau/position), mais des données bien réelles
+    if (!meta) meta = { rack: null, level: null, pos: null, section: "OTHER" };
+
+    var lines = state.binIndex.get(binKey) || [];
+    var hu = entry ? entry.count : 0;
+    var art = entry ? entry.materials.size : 0;
+    var qtySum = entry ? entry.qtySum : 0;
+    var batches = entry ? entry.batches.size : 0;
+    var masterHus = entry ? entry.masterHus.size : 0;
+
+    var kpiHtml = '<table class="kv-table">' +
+      '<tr><td class="k">Bin</td><td>' + binKey + '</td></tr>' +
+      '<tr><td class="k">Nb Articles</td><td>' + art + '</td></tr>' +
+      '<tr><td class="k">Nb HU</td><td>' + hu + '</td></tr>' +
+      '<tr><td class="k">Quantité Totale</td><td>' + formatNum(qtySum) + '</td></tr>' +
+      '<tr><td class="k">Nb Batchs</td><td>' + batches + '</td></tr>' +
+      '<tr><td class="k">Nb Master HU</td><td>' + masterHus + '</td></tr>' +
+    '</table>';
+
+    var tableHtml;
+    if (lines.length){
+      var rowsHtml = lines.map(function(l){
+        return '<tr><td>' + l.material + '</td><td>' + l.hu + '</td><td>' + l.highestLevelHu + '</td><td>' + l.batch + '</td><td>' + formatNum(l.quantity) + '</td></tr>';
+      }).join("");
+      tableHtml = '<table class="data-table"><thead><tr><th>Material</th><th>HU</th><th>Highest Level HU</th><th>Batch</th><th>Quantity</th></tr></thead>' +
+        '<tbody>' + rowsHtml + '</tbody></table>';
+    } else {
+      tableHtml = '<div class="empty-state">Bin vide — aucune ligne SAP sur cet emplacement</div>';
+    }
+
+    var subLine = meta.section === "OTHER"
+      ? "Section AUTRES (hors structure MP/PF)"
+      : "Rack " + meta.rack + " · Niveau " + meta.level + " · Position " + meta.pos + " · Section " + meta.section;
+
+    card.innerHTML =
+      '<div class="detail-title">BIN DETAILS — ' + binKey + '</div>' +
+      '<div class="detail-sub">' + subLine + '</div>' +
+      kpiHtml + tableHtml +
+      '<div class="print-footer"></div>';
+
+    showSearchView(); stampPrintFooters();
+  }
+
+  function showArticleDetails(material){
+    var agg = state.materialAgg.get(material);
+    var lines = state.materialIndex.get(material) || [];
+    var card = document.getElementById("searchResultCard");
+
+    if (!agg || !lines.length){
+      card.innerHTML = '<div class="empty-state">Aucune donnée trouvée pour l\'article "' + material + '"</div><div class="print-footer"></div>';
+      showSearchView(); stampPrintFooters(); return;
+    }
+
+    var kpiHtml = '<table class="kv-table">' +
+      '<tr><td class="k">Article</td><td>' + material + '</td></tr>' +
+      '<tr><td class="k">Total Bins</td><td>' + agg.bins.size + '</td></tr>' +
+      '<tr><td class="k">Total HU</td><td>' + agg.count + '</td></tr>' +
+      '<tr><td class="k">Quantité Totale</td><td>' + formatNum(agg.qtySum) + '</td></tr>' +
+      '<tr><td class="k">Total Batchs</td><td>' + agg.batches.size + '</td></tr>' +
+      '<tr><td class="k">Total Master HU</td><td>' + agg.masterHus.size + '</td></tr>' +
+    '</table>';
+
+    var rowsHtml = lines.map(function(l){
+      return '<tr><td>' + l.bin + '</td><td>' + l.hu + '</td><td>' + l.highestLevelHu + '</td><td>' + l.batch + '</td><td>' + formatNum(l.quantity) + '</td></tr>';
+    }).join("");
+
+    card.innerHTML =
+      '<div class="detail-title">ARTICLE DETAILS — ' + material + '</div>' +
+      '<div class="detail-sub">' + lines.length + ' ligne(s) SAP trouvée(s)</div>' +
+      kpiHtml +
+      '<table class="data-table"><thead><tr><th>Bin</th><th>HU</th><th>Highest Level HU</th><th>Batch</th><th>Quantity</th></tr></thead>' +
+      '<tbody>' + rowsHtml + '</tbody></table>' +
+      '<div class="print-footer"></div>';
+
+    showSearchView(); stampPrintFooters();
+  }
+
+  function showRackFilter(rackVals){
+    var validRacks = rackVals.filter(function(r){ return MP_RACKS.indexOf(r) !== -1 || PF_RACKS.indexOf(r) !== -1; });
+    var card = document.getElementById("searchResultCard");
+
+    if (!validRacks.length){
+      card.innerHTML = '<div class="empty-state">Rack "' + rackVals.join(", ") + '" introuvable (MP ou PF)</div><div class="print-footer"></div>';
+      showSearchView(); stampPrintFooters(); return;
+    }
+
+    var html = '<div class="detail-title">RACK' + (validRacks.length > 1 ? "S" : "") + ' ' + validRacks.join(", ") + '</div>' +
+      '<div class="detail-sub">Vue filtrée — affichage exclusif de ' + (validRacks.length > 1 ? "ces racks" : "ce rack") + '</div>' +
+      '<div class="legend">' +
+        '<span><i style="background:#16A34A;"></i> HU = 0</span>' +
+        '<span><i style="background:#DBEAFE;"></i> HU 1–20</span>' +
+        '<span><i style="background:#F37021;"></i> HU 21–50</span>' +
+        '<span><i style="background:#DC2626;"></i> HU &gt; 50</span>' +
+      '</div>';
+
+    validRacks.forEach(function(rackVal){
+      var isMp = MP_RACKS.indexOf(rackVal) !== -1;
+      var section = isMp ? "MP" : "PF";
+      var levels = isMp ? MP_LEVELS : PF_LEVELS;
+      var positions = isMp ? MP_POSITIONS : PF_POSITIONS;
+
+      html += '<div class="rack-block" data-rack="' + rackVal + '"><div class="rack-title">RACK ' + rackVal + ' (' + section + ')</div>';
+      levels.forEach(function(level){
+        html += '<div class="level-row"><div class="level-label">Niveau ' + level + '</div><div class="level-cells">';
+        for (var p = 1; p <= positions; p++){
+          html += binCellHtml(rackVal + "-" + level + "-" + p);
+        }
+        html += '</div></div>';
+      });
+      html += '</div>';
+    });
+
+    html += '<div class="print-footer"></div>';
+    card.innerHTML = html;
+    showSearchView(); stampPrintFooters();
+  }
+
+  /* ======================================================================
+     EXPORT PDF / PRINT
+     ====================================================================== */
+  function enterPrintMode(target){
+    stampPrintFooters();
+    document.body.classList.add("print-mode");
+    document.body.setAttribute("data-print-target", target);
+  }
+  function exitPrintMode(){
+    document.body.classList.remove("print-mode");
+    document.body.removeAttribute("data-print-target");
+  }
+
+  function printSection(target){
+    enterPrintMode(target);
+    window.print();
+  }
+
+  window.addEventListener("afterprint", exitPrintMode);
+
+  document.getElementById("btnPrint").addEventListener("click", function(){ printSection(state.activeTab); });
+  document.getElementById("btnPrintSearch").addEventListener("click", function(){ printSection("SEARCH"); });
+
+  function exportPdf(target, elementId, filename){
+    enterPrintMode(target);
+    var el = document.getElementById(elementId);
+    var opt = {
+      margin: 5,
+      filename: filename,
+      image: { type: "jpeg", quality: 0.98 },
+      html2canvas: { scale: 2 },
+      jsPDF: { unit: "mm", format: "a4", orientation: "landscape" },
+      pagebreak: { mode: ["css"] }
+    };
+    html2pdf().set(opt).from(el).save().then(exitPrintMode);
+  }
+
+  document.getElementById("btnExportPdf").addEventListener("click", function(){
+    var section = state.activeTab;
+    exportPdf(section, "view" + section, "AZOUMAG_Inventory_" + section + ".pdf");
+  });
+  document.getElementById("btnExportSearchPdf").addEventListener("click", function(){
+    exportPdf("SEARCH", "searchResultView", "AZOUMAG_Inventory_SearchResult.pdf");
+  });
+
+  /* ======================================================================
+     RESET
+     ====================================================================== */
+  document.getElementById("btnReset").addEventListener("click", function(){
+    if (!confirm("Charger un nouveau fichier ? Les données actuelles seront perdues.")) return;
+    state.headers = []; state.rows = [];
+    state.mapping = { bin: null, material: null, quantity: null, batch: null, highestLevelHu: null, hu: null, description: null };
+    state.allLines = []; state.binIndex = new Map(); state.materialIndex = new Map();
+    state.binAgg = new Map(); state.materialAgg = new Map(); state.obdData = new Map();
+    state.binKeyList = []; state.articleList = []; state.ignoredLines = 0;
+    state.searchMode = null;
+    fileInput.value = "";
+    document.getElementById("ignoredNotice").classList.add("hidden");
+    document.getElementById("dashboardSection").classList.add("hidden");
+    document.getElementById("mappingSection").classList.add("hidden");
+    document.getElementById("importSection").classList.remove("hidden");
+  });
+
+})();
+</script>
+</body>
+</html>

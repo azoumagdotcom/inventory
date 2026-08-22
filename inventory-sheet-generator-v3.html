@@ -1,0 +1,2140 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AZOUMAG INVENTORY SUITE PRO V3</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+/* ================================================================
+   AZOUMAG INVENTORY SUITE PRO V3 — Couleurs fixes, pas de :root
+   ================================================================ */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: #F5F5F5; color: #111111; font-family: "Segoe UI", Arial, sans-serif; -webkit-font-smoothing: antialiased; height: 100%; }
+body { overflow-x: hidden; }
+.hidden { display: none !important; }
+button, input, select, textarea { font-family: inherit; }
+
+/* ---------- APP SHELL ---------- */
+.app-shell { display: flex; min-height: 100vh; }
+
+/* ---------- SIDEBAR ---------- */
+.sidebar { width: 240px; flex-shrink: 0; background: #1D2240; color: #FFF4EC; display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+.sidebar .brand { display: flex; align-items: center; gap: 12px; padding: 20px 18px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+.sidebar .brand-mark { width: 40px; height: 40px; background: #F37021; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 16px; color: #1D2240; flex-shrink: 0; }
+.sidebar .brand-text { line-height: 1.3; }
+.sidebar .brand-text .t1 { font-size: 13px; font-weight: 800; letter-spacing: 0.4px; }
+.sidebar .brand-text .t2 { font-size: 9.5px; color: #F37021; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+
+.nav-list { list-style: none; padding: 14px 10px; flex: 1; }
+.nav-item { margin-bottom: 3px; }
+.nav-link { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 7px; color: #D8DCEE; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.12s ease, color 0.12s ease; }
+.nav-link:hover { background: rgba(243,112,33,0.12); color: #FFF4EC; }
+.nav-link.active { background: #F37021; color: #FFFFFF; }
+.nav-link .ico { width: 18px; text-align: center; font-size: 13px; }
+
+.sidebar-footer { padding: 14px 16px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 10px; color: #9AA0C0; line-height: 1.6; }
+.sidebar-footer strong { color: #F37021; }
+.theme-toggle-wrap { padding: 10px 16px; border-top: 1px solid rgba(255,255,255,0.08); }
+.theme-toggle { width: 100%; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); color: #FFF4EC; padding: 9px; border-radius: 7px; font-size: 12px; font-weight: 700; cursor: pointer; }
+.theme-toggle:hover { background: rgba(255,255,255,0.12); }
+
+/* ---------- CONTENT ---------- */
+.content { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.topbar { background: #FFFFFF; border-bottom: 1px solid #E3E3E3; padding: 14px 26px; display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 50; }
+.topbar h2 { font-size: 17px; font-weight: 800; color: #1D2240; white-space: nowrap; }
+.hamburger-btn { display: none; background: #1D2240; color: #FFF4EC; border: none; border-radius: 6px; width: 36px; height: 36px; font-size: 16px; cursor: pointer; flex-shrink: 0; align-items: center; justify-content: center; }
+.sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 400; }
+.sidebar-overlay.show { display: block; }
+.global-search-wrap { flex: 1; max-width: 560px; position: relative; }
+.global-search-wrap input { width: 100%; padding: 9px 12px; border-radius: 7px; border: 1.5px solid #CCCCCC; font-size: 13px; }
+.global-search-wrap input:focus { outline: none; border-color: #F37021; }
+.global-results { position: absolute; top: 100%; left: 0; right: 0; z-index: 300; background: #FFFFFF; border: 1.5px solid #F37021; border-top: none; border-radius: 0 0 8px 8px; max-height: 340px; overflow-y: auto; box-shadow: 0 8px 18px rgba(0,0,0,0.16); }
+.gr-item { padding: 9px 12px; font-size: 12.5px; cursor: pointer; border-bottom: 1px solid #F0F0F0; display: flex; justify-content: space-between; gap: 10px; }
+.gr-item:hover { background: #FFF4EC; }
+.gr-item .gr-tag { font-size: 9px; font-weight: 800; text-transform: uppercase; background: #1D2240; color: #FFF4EC; padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
+.gr-item .gr-main { font-weight: 700; color: #1D2240; }
+.gr-item .gr-sub { color: #888; font-size: 11px; }
+.gr-empty { padding: 10px; font-size: 12px; color: #999; text-align: center; }
+
+.page { padding: 22px 26px 60px; }
+.page-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
+.page-desc { font-size: 12.5px; color: #777; margin-bottom: 18px; }
+/* ---------- CARDS / BUTTONS ---------- */
+.card { background: #FFFFFF; border: 1px solid #E3E3E3; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); padding: 20px; margin-bottom: 18px; }
+.btn { display: inline-flex; align-items: center; gap: 6px; border: none; border-radius: 6px; padding: 10px 16px; font-size: 12.5px; font-weight: 700; cursor: pointer; letter-spacing: 0.2px; transition: transform 0.06s ease, opacity 0.15s ease; white-space: nowrap; }
+.btn:active { transform: scale(0.97); }
+.btn-primary { background: #F37021; color: #FFFFFF; }
+.btn-primary:hover { background: #D9601A; }
+.btn-outline { background: #FFFFFF; color: #1D2240; border: 1.5px solid #1D2240; }
+.btn-outline:hover { background: #1D2240; color: #FFFFFF; }
+.btn-navy { background: #1D2240; color: #FFF4EC; }
+.btn-navy:hover { background: #141729; }
+.btn-ghost { background: transparent; color: #DC2626; border: 1.5px solid #DC2626; }
+.btn-ghost:hover { background: #DC2626; color: #FFFFFF; }
+.btn-sm { padding: 7px 12px; font-size: 11px; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ---------- KPI GRID ---------- */
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.kpi-card { background: #FFFFFF; border: 1px solid #E3E3E3; border-radius: 10px; padding: 16px 14px; border-top: 3px solid #F37021; transition: transform 0.12s ease, box-shadow 0.12s ease; }
+.kpi-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.08); }
+.kpi-card .kv { font-size: 24px; font-weight: 800; color: #1D2240; }
+.kpi-card .kl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #777; margin-top: 4px; }
+.kpi-card.alert { border-top-color: #DC2626; }
+.kpi-card.good { border-top-color: #16A34A; }
+.kpi-progress-track { height: 6px; background: #EFEFEF; border-radius: 4px; margin-top: 10px; overflow: hidden; }
+.kpi-progress-fill { height: 100%; border-radius: 4px; background: #F37021; }
+.kpi-center-wrap { position: relative; display: flex; align-items: center; justify-content: center; }
+.kpi-center-text { position: absolute; text-align: center; }
+.kpi-center-text .cv { font-size: 22px; font-weight: 800; color: #1D2240; }
+.kpi-center-text .cl { font-size: 9.5px; color: #777; text-transform: uppercase; letter-spacing: 0.4px; }
+body.theme-dark .kpi-progress-track { background: #2B3055; }
+body.theme-dark .kpi-center-text .cv { color: #FFF4EC; }
+
+/* ---------- CHARTS ---------- */
+.chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; margin-bottom: 18px; }
+.chart-card { background: #FFFFFF; border: 1px solid #E3E3E3; border-radius: 10px; padding: 16px; }
+.chart-card h3 { font-size: 13px; font-weight: 800; color: #1D2240; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.4px; }
+.chart-card canvas { max-height: 260px; }
+.chart-card.chart-wide { grid-column: 1 / -1; }
+
+/* ---------- HEATMAP ---------- */
+.heatmap-wrap { overflow-x: auto; }
+.heatmap-row { display: flex; align-items: center; gap: 4px; margin-bottom: 3px; }
+.heatmap-rack-label { width: 42px; flex-shrink: 0; font-size: 10px; font-weight: 800; color: #1D2240; text-align: right; padding-right: 6px; }
+.heatmap-cell { width: 20px; height: 20px; border-radius: 3px; flex-shrink: 0; }
+.heatmap-legend { display: flex; gap: 14px; margin-top: 10px; font-size: 11px; color: #333; flex-wrap: wrap; }
+.heatmap-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.heatmap-legend i { width: 13px; height: 13px; border-radius: 3px; display: inline-block; }
+
+/* ---------- FORMS ---------- */
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 16px; }
+.form-field label { display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.4px; color: #1D2240; font-weight: 700; margin-bottom: 6px; }
+.form-field input, .form-field select, .form-field textarea { width: 100%; padding: 9px 10px; border-radius: 6px; border: 1.5px solid #CCCCCC; font-size: 13px; background: #FFFFFF; color: #111111; }
+.form-field input:focus, .form-field select:focus, .form-field textarea:focus { outline: none; border-color: #F37021; }
+.form-field.detected select, .form-field.detected input { border-color: #16A34A; }
+.form-field .status { font-size: 10px; margin-top: 4px; font-weight: 700; }
+.form-field.detected .status { color: #16A34A; }
+.form-field.missing .status { color: #DC2626; }
+
+/* ---------- TABLES ---------- */
+.table-wrap { overflow-x: auto; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.data-table th { background: #1D2240; color: #FFF4EC; text-align: left; padding: 10px 12px; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.4px; cursor: pointer; user-select: none; white-space: nowrap; }
+.data-table th .sort-ico { opacity: 0.5; font-size: 9px; margin-left: 4px; }
+.data-table td { padding: 8px 12px; border-bottom: 1px solid #EEEEEE; }
+.data-table tr:nth-child(even) { background: #FAFAFA; }
+.data-table input.gap-input { width: 80px; padding: 5px 7px; border: 1.5px solid #CCCCCC; border-radius: 5px; font-size: 12px; }
+.table-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px; flex-wrap: wrap; }
+.table-toolbar input.table-search { padding: 8px 10px; border-radius: 6px; border: 1.5px solid #CCCCCC; font-size: 12.5px; min-width: 220px; }
+.pagination { display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 14px; font-size: 12px; color: #1D2240; }
+.pagination button { background: #FFFFFF; border: 1.5px solid #1D2240; color: #1D2240; padding: 5px 12px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 12px; }
+.pagination button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.badge-danger { background: #FDE2E1; color: #B91C1C; }
+.badge-warn { background: #FFE9D6; color: #B85614; }
+.badge-ok { background: #DCFCE7; color: #15803D; }
+.badge-navy { background: #E4E7F5; color: #1D2240; }
+
+.empty-state { text-align: center; padding: 34px; color: #888; font-size: 13px; }
+.filters-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; align-items: flex-end; background: #FFFFFF; border: 1px solid #E3E3E3; border-radius: 8px; padding: 12px; }
+.filters-row .form-field { min-width: 150px; flex: 1; margin-bottom: 0; }
+/* ---------- IMPORT ZONE ---------- */
+.import-zone { border: 2px dashed #F37021; border-radius: 10px; background: #FFF4EC; padding: 50px 20px; text-align: center; cursor: pointer; transition: background 0.15s ease; }
+.import-zone:hover, .import-zone.dragover { background: #FFE6D3; }
+.import-zone h2 { color: #1D2240; font-size: 19px; margin-bottom: 8px; }
+.import-zone p { color: #555; font-size: 13px; margin-bottom: 16px; }
+.import-zone .formats { font-size: 11px; color: #888; margin-top: 12px; letter-spacing: 0.4px; }
+input[type=file] { display: none; }
+
+/* ---------- INVENTORY TABS (MP/PF/OBD/AUTRES) ---------- */
+.inv-tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.inv-tab-btn { background: #FFFFFF; border: 1.5px solid #1D2240; color: #1D2240; padding: 9px 18px; border-radius: 6px; font-weight: 700; font-size: 12.5px; cursor: pointer; }
+.inv-tab-btn.active { background: #1D2240; color: #FFF4EC; }
+
+.legend { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; font-size: 11px; color: #333; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 14px; height: 14px; border-radius: 3px; display: inline-block; border: 1px solid #ccc; }
+
+.rack-block { background: #FFFFFF; border: 1px solid #E3E3E3; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+.rack-title { background: #1D2240; color: #FFF4EC; font-weight: 800; font-size: 13px; padding: 6px 14px; border-radius: 5px; display: inline-block; margin-bottom: 12px; letter-spacing: 0.4px; }
+.level-row { display: flex; align-items: center; margin-bottom: 6px; }
+.level-label { width: 68px; flex-shrink: 0; font-size: 10.5px; font-weight: 700; color: #1D2240; text-transform: uppercase; }
+.level-cells { display: flex; flex-wrap: wrap; gap: 4px; flex: 1; }
+.bin-cell { width: 72px; min-height: 72px; border: 1px solid #BBBBBB; border-radius: 4px; font-size: 9px; text-align: center; padding: 3px 2px; display: flex; flex-direction: column; justify-content: space-between; background: #FFFFFF; cursor: pointer; }
+.bin-cell .bin-code { font-weight: 800; font-size: 8.5px; color: #1D2240; }
+.bin-cell .bin-hu-big { font-size: 21px; font-weight: 800; line-height: 1; color: #1D2240; }
+.bin-cell .bin-art { font-size: 8px; color: #333333; }
+.bin-cell.hu-0 { background: #16A34A; }
+.bin-cell.hu-0 .bin-code, .bin-cell.hu-0 .bin-hu-big, .bin-cell.hu-0 .bin-art { color: #FFFFFF; }
+.bin-cell.hu-low { background: #DBEAFE; }
+.bin-cell.hu-mid { background: #F37021; }
+.bin-cell.hu-mid .bin-code, .bin-cell.hu-mid .bin-hu-big, .bin-cell.hu-mid .bin-art { color: #FFFFFF; }
+.bin-cell.hu-high { background: #DC2626; }
+.bin-cell.hu-high .bin-code, .bin-cell.hu-high .bin-hu-big, .bin-cell.hu-high .bin-art { color: #FFFFFF; }
+
+.kv-table { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
+.kv-table td { padding: 10px 14px; border: 1px solid #E3E3E3; font-size: 13px; }
+.kv-table td.k { background: #FFF4EC; font-weight: 700; color: #1D2240; width: 220px; }
+.detail-title { font-size: 16px; font-weight: 800; color: #1D2240; margin-bottom: 4px; }
+.detail-sub { font-size: 12px; color: #777; margin-bottom: 16px; }
+.result-list { list-style: none; margin-top: 10px; }
+.result-list li { padding: 10px 14px; border: 1px solid #E3E3E3; border-radius: 6px; margin-bottom: 6px; cursor: pointer; display: flex; justify-content: space-between; gap: 10px; font-size: 13px; }
+.result-list li:hover { border-color: #F37021; background: #FFF4EC; }
+.result-list li .rl-main { font-weight: 800; color: #1D2240; }
+.result-list li .rl-sub { color: #777; font-size: 11.5px; }
+.ignored-notice { font-size: 11px; color: #DC2626; margin-bottom: 12px; }
+
+/* ---------- BARCODE MODULE ---------- */
+.barcode-label { background: #FFFFFF; border: 1.5px solid #1D2240; border-radius: 8px; padding: 12px; text-align: center; display: inline-block; margin: 6px; }
+.barcode-label .bl-code { font-size: 11px; font-weight: 800; color: #1D2240; margin-top: 6px; }
+.barcode-grid { display: flex; flex-wrap: wrap; gap: 4px; }
+
+/* ---------- PRINT ---------- */
+.print-header { display: none; }
+.print-footer { display: none; }
+@media print {
+  @page { size: A4 landscape; margin: 8mm; }
+  body.print-mode .no-print, body.print-mode .sidebar, body.print-mode .topbar { display: none !important; }
+  body.print-mode .content { padding: 0; }
+  body.print-mode .print-header { display: flex; justify-content: space-between; font-size: 11px; border-bottom: 2px solid #1D2240; padding-bottom: 6px; margin-bottom: 10px; }
+  body.print-mode .print-footer { display: block; margin-top: 10px; padding-top: 6px; border-top: 1px solid #ccc; font-size: 10px; color: #1D2240; text-align: center; line-height: 1.5; }
+  body.print-mode .card { box-shadow: none; border: none; padding: 0; }
+  body.print-mode .rack-block { break-inside: avoid; border: 1px solid #999; }
+  body.print-mode .bin-cell { border: 1px solid #666; }
+  body.print-mode .print-page { page-break-after: always; }
+  body.print-mode .print-page:last-child { page-break-after: auto; }
+  body.print-mode .page { display: none !important; }
+  body.print-mode .page.print-active { display: block !important; }
+}
+
+/* ---------- DARK MODE (surcharges explicites, sans variables CSS) ---------- */
+body.theme-dark { background: #14172A; color: #EDEEF5; }
+body.theme-dark .content { background: #14172A; }
+body.theme-dark .topbar { background: #1B1F38; border-bottom: 1px solid #2B3055; }
+body.theme-dark .topbar h2 { color: #FFF4EC; }
+body.theme-dark .global-search-wrap input { background: #22264A; border-color: #3A3F6B; color: #EDEEF5; }
+body.theme-dark .global-results { background: #22264A; border-color: #F37021; }
+body.theme-dark .gr-item { border-bottom-color: #2B3055; }
+body.theme-dark .gr-item:hover { background: #2B2F58; }
+body.theme-dark .gr-item .gr-main { color: #FFF4EC; }
+body.theme-dark .card { background: #1B1F38; border-color: #2B3055; }
+body.theme-dark .kpi-card { background: #1B1F38; border-color: #2B3055; }
+body.theme-dark .kpi-card .kv { color: #FFF4EC; }
+body.theme-dark .chart-card { background: #1B1F38; border-color: #2B3055; }
+body.theme-dark .chart-card h3 { color: #FFF4EC; }
+body.theme-dark .rack-block { background: #1B1F38; border-color: #2B3055; }
+body.theme-dark .bin-cell { background: #22264A; border-color: #3A3F6B; }
+body.theme-dark .bin-cell .bin-code, body.theme-dark .bin-cell .bin-art { color: #C9CCE6; }
+body.theme-dark .data-table td { border-bottom-color: #2B3055; color: #EDEEF5; }
+body.theme-dark .data-table tr:nth-child(even) { background: #20244A; }
+body.theme-dark .form-field input, body.theme-dark .form-field select, body.theme-dark .form-field textarea { background: #22264A; border-color: #3A3F6B; color: #EDEEF5; }
+body.theme-dark .kv-table td { background: #1B1F38; border-color: #2B3055; color: #EDEEF5; }
+body.theme-dark .kv-table td.k { background: #22264A; }
+body.theme-dark .detail-title { color: #FFF4EC; }
+body.theme-dark .import-zone { background: #22264A; }
+body.theme-dark .filters-row { background: #1B1F38; border-color: #2B3055; }
+body.theme-dark .inv-tab-btn { background: #1B1F38; color: #EDEEF5; border-color: #3A3F6B; }
+body.theme-dark .table-toolbar input.table-search { background: #22264A; border-color: #3A3F6B; color: #EDEEF5; }
+
+@media (max-width: 1000px) {
+  .sidebar { position: fixed; left: -240px; z-index: 500; transition: left 0.2s ease; top: 0; }
+  .sidebar.open { left: 0; }
+  .app-shell { display: block; }
+  .hamburger-btn { display: flex; }
+}
+</style>
+</head>
+<body>
+<div class="app-shell">
+
+  <div class="sidebar-overlay no-print" id="sidebarOverlay"></div>
+  <aside class="sidebar no-print" id="sidebar">
+    <div class="brand">
+      <div class="brand-mark">AZ</div>
+      <div class="brand-text">
+        <div class="t1">AZOUMAG INVENTORY SUITE</div>
+        <div class="t2">Pro V3</div>
+      </div>
+    </div>
+    <ul class="nav-list">
+      <li class="nav-item"><div class="nav-link active" data-page="dashboard"><span class="ico">&#9635;</span> Dashboard</div></li>
+      <li class="nav-item"><div class="nav-link" data-page="import"><span class="ico">&#8593;</span> Import SAP</div></li>
+      <li class="nav-item"><div class="nav-link" data-page="inventory"><span class="ico">&#9638;</span> Feuilles d'Inventaire</div></li>
+      <li class="nav-item"><div class="nav-link" data-page="barcode"><span class="ico">&#9612;&#9616;</span> Codes-barres</div></li>
+      <li class="nav-item"><div class="nav-link" data-page="bins"><span class="ico">&#9633;</span> Gestion des Bins</div></li>
+      <li class="nav-item"><div class="nav-link" data-page="hu"><span class="ico">&#9737;</span> Analyse HU</div></li>
+      <li class="nav-item"><div class="nav-link" data-page="batch"><span class="ico">&#9881;</span> Analyse Batchs</div></li>
+      <li class="nav-item"><div class="nav-link" data-page="gap"><span class="ico">&#8776;</span> Écarts Inventaire</div></li>
+      <li class="nav-item"><div class="nav-link" data-page="report"><span class="ico">&#128203;</span> Rapport</div></li>
+      <li class="nav-item"><div class="nav-link" data-page="history"><span class="ico">&#8635;</span> Historique</div></li>
+    </ul>
+    <div class="theme-toggle-wrap">
+      <button class="theme-toggle" id="btnTheme">Mode Sombre</button>
+    </div>
+    <div class="sidebar-footer">
+      <strong>AZOUMAG © 2026</strong><br>
+      The Ultimate Online Solutions<br>
+      All Rights Reserved 2026
+    </div>
+  </aside>
+
+  <div class="content">
+    <header class="topbar no-print">
+      <button class="hamburger-btn" id="btnHamburger" aria-label="Menu">&#9776;</button>
+      <h2 id="pageTitle">Dashboard</h2>
+      <div class="global-search-wrap">
+        <input type="text" id="globalSearch" placeholder="Recherche globale : Material, Description, Batch, HU, Highest Level HU, Bin..." autocomplete="off">
+        <div class="global-results hidden" id="globalResults"></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-outline btn-sm" id="btnResetApp">Nouveau Fichier</button>
+      </div>
+    </header>
+    <!-- ============ PAGE : DASHBOARD ============ -->
+    <div class="page" id="page-dashboard">
+      <div class="page-desc">Vue d'ensemble analytique du stock importé — KPI, répartitions et heatmap des racks.</div>
+
+      <div id="dashboardEmpty" class="card">
+        <div class="empty-state">Aucune donnée importée. Rendez-vous sur <strong>Import SAP</strong> pour charger un export.</div>
+      </div>
+
+      <div id="dashboardContent" class="hidden">
+        <div id="chartsUnavailableBanner" class="ignored-notice hidden no-print" style="background:#FFF4EC; border:1px solid #F37021; border-radius:8px; padding:10px 14px; color:#1D2240;">Graphiques indisponibles : la bibliothèque Chart.js n'a pas pu se charger (connexion internet requise lors du premier chargement de la page). Les KPI, l'inventaire et les exports restent pleinement fonctionnels.</div>
+        <div class="kpi-grid" id="kpiGrid"></div>
+
+        <div class="chart-grid">
+          <div class="chart-card">
+            <h3>Répartition par Rack (HU)</h3>
+            <canvas id="chartRack"></canvas>
+          </div>
+          <div class="chart-card">
+            <h3>Répartition MP / PF / TPA / Autres</h3>
+            <canvas id="chartSection"></canvas>
+          </div>
+          <div class="chart-card">
+            <h3>Stock (Quantité) par Zone</h3>
+            <canvas id="chartZone"></canvas>
+          </div>
+          <div class="chart-card">
+            <h3>Occupation des Bins</h3>
+            <div class="kpi-center-wrap"><canvas id="chartBinsStatus"></canvas>
+              <div class="kpi-center-text" id="chartBinsStatusCenter"><div class="cv">–</div><div class="cl">Occupés</div></div>
+            </div>
+          </div>
+          <div class="chart-card">
+            <h3>Taux de Conformité (Écarts)</h3>
+            <div class="kpi-center-wrap"><canvas id="chartConformite"></canvas>
+              <div class="kpi-center-text" id="chartConformiteCenter"><div class="cv">–</div><div class="cl">Conforme</div></div>
+            </div>
+          </div>
+          <div class="chart-card">
+            <h3>Top 10 Articles (Quantité)</h3>
+            <canvas id="chartTopArticles"></canvas>
+          </div>
+          <div class="chart-card">
+            <h3>Qualité des Données (Anomalies HU/Batch)</h3>
+            <canvas id="chartDataQuality"></canvas>
+          </div>
+          <div class="chart-card">
+            <h3>Distribution HU par Bin (Histogramme)</h3>
+            <canvas id="chartHuDistribution"></canvas>
+          </div>
+          <div class="chart-card chart-wide">
+            <h3>Heatmap des Racks (densité HU)</h3>
+            <div class="heatmap-wrap" id="heatmapContainer"></div>
+            <div class="heatmap-legend">
+              <span><i style="background:#16A34A;"></i> Vide</span>
+              <span><i style="background:#DBEAFE;"></i> Faible</span>
+              <span><i style="background:#F37021;"></i> Moyen</span>
+              <span><i style="background:#DC2626;"></i> Élevé</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- ============ PAGE : IMPORT SAP ============ -->
+    <div class="page hidden" id="page-import">
+      <div class="page-desc">Importez un export SAP (.xlsx, .xls, .csv). Les colonnes sont détectées automatiquement.</div>
+
+      <div class="card" id="importZoneCard">
+        <div class="import-zone" id="dropZone">
+          <h2>Import SAP Inventory File</h2>
+          <p>Drag &amp; Drop <strong>or</strong> <span style="color:#F37021; text-decoration:underline;">Browse File</span></p>
+          <button class="btn btn-primary" id="btnBrowse">Import SAP Inventory File</button>
+          <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+          <div class="formats">FORMATS ACCEPTÉS : .XLSX &nbsp;·&nbsp; .XLS &nbsp;·&nbsp; .CSV</div>
+        </div>
+      </div>
+
+      <div class="card hidden" id="mappingCard">
+        <h2 style="color:#DC2626; font-size:16px; margin-bottom:6px;">Mapping Manuel Requis</h2>
+        <p class="page-desc">Certaines colonnes n'ont pas été détectées automatiquement.</p>
+        <div class="form-grid" id="mappingGrid"></div>
+        <button class="btn btn-primary" id="btnValidateMapping">Valider le Mapping</button>
+      </div>
+
+      <div class="card hidden" id="previewCard">
+        <div class="page-title-row">
+          <h2 style="font-size:15px; color:#1D2240;">Prévisualisation (10 premières lignes)</h2>
+          <div class="btn-row">
+            <button class="btn btn-outline btn-sm" id="btnCancelPreview">Annuler</button>
+            <button class="btn btn-primary btn-sm" id="btnConfirmImport">Confirmer l'Import</button>
+          </div>
+        </div>
+        <div class="table-wrap"><table class="data-table" id="previewTable"></table></div>
+      </div>
+    </div>
+    <!-- ============ PAGE : GÉNÉRATEUR DE FEUILLES D'INVENTAIRE ============ -->
+    <div class="page hidden" id="page-inventory">
+      <div class="page-desc">Feuilles d'inventaire terrain par type : MP, PF, TPA (OBD) et Autres. Recherche Bin / Article / Rack intégrée.</div>
+      <div id="inventoryEmpty" class="card"><div class="empty-state">Importez un fichier pour générer les feuilles d'inventaire.</div></div>
+
+      <div id="inventoryContent" class="hidden">
+        <div id="inventoryDiagBanner" class="ignored-notice hidden no-print" style="background:#FFF4EC; border:1px solid #F37021; border-radius:8px; padding:10px 14px; color:#1D2240;"></div>
+        <div class="filters-row no-print">
+          <div class="form-field"><label>Recherche Bin</label><input type="text" id="searchBin" placeholder="Ex: A-0-1" autocomplete="off"><div class="global-results hidden" id="acBin"></div></div>
+          <div class="form-field"><label>Recherche Article (Réf. ou Description)</label><input type="text" id="searchArticle" placeholder="Ex: 386R" autocomplete="off"><div class="global-results hidden" id="acArticle"></div></div>
+          <div class="form-field"><label>Recherche Rack</label><input type="text" id="searchRack" placeholder="Ex: A ou K0" autocomplete="off"><div class="global-results hidden" id="acRack"></div></div>
+          <button class="btn btn-outline btn-sm" id="btnClearSearch">Réinitialiser</button>
+        </div>
+
+        <div class="inv-tabs no-print" id="tabsBar">
+          <button class="inv-tab-btn active" data-tab="MP">MP</button>
+          <button class="inv-tab-btn" data-tab="PF">PF</button>
+          <button class="inv-tab-btn" data-tab="OBD">TPA (OBD)</button>
+          <button class="inv-tab-btn" data-tab="OTHER">AUTRES</button>
+          <div class="btn-row" style="margin-left:auto;">
+            <button class="btn btn-navy btn-sm" id="btnExportPdf">Export PDF</button>
+            <button class="btn btn-outline btn-sm" id="btnPrint">Print</button>
+            <button class="btn btn-outline btn-sm" id="btnExportExcelInv">Export Excel</button>
+          </div>
+        </div>
+
+        <section data-view="MP" id="viewMP">
+          <div class="print-header"><span>Date : ______________________</span><span>Inventoriste : ______________________</span><span>Equipe : ______________________</span></div>
+          <div class="legend no-print">
+            <span><i style="background:#16A34A;"></i> HU = 0</span><span><i style="background:#DBEAFE;"></i> HU 1–20</span>
+            <span><i style="background:#F37021;"></i> HU 21–50</span><span><i style="background:#DC2626;"></i> HU &gt; 50</span>
+          </div>
+          <div id="rackContainerMP"></div>
+          <div class="print-footer"></div>
+        </section>
+
+        <section data-view="PF" id="viewPF" class="hidden">
+          <div class="print-header"><span>Date : ______________________</span><span>Inventoriste : ______________________</span><span>Equipe : ______________________</span></div>
+          <div class="legend no-print">
+            <span><i style="background:#16A34A;"></i> HU = 0</span><span><i style="background:#DBEAFE;"></i> HU 1–20</span>
+            <span><i style="background:#F37021;"></i> HU 21–50</span><span><i style="background:#DC2626;"></i> HU &gt; 50</span>
+          </div>
+          <div id="rackContainerPF"></div>
+          <div class="print-footer"></div>
+        </section>
+
+        <section data-view="OBD" id="viewOBD" class="hidden">
+          <div class="print-header"><span>Date : ______________________</span><span>Inventoriste : ______________________</span><span>Equipe : ______________________</span></div>
+          <div class="card print-page">
+            <table class="data-table" id="obdTable"><thead><tr><th>TPA</th><th>Article</th><th>Quantité Totale</th></tr></thead><tbody id="obdTableBody"></tbody></table>
+            <div class="print-footer"></div>
+          </div>
+        </section>
+
+        <section data-view="OTHER" id="viewOTHER" class="hidden">
+          <div class="print-header"><span>Date : ______________________</span><span>Inventoriste : ______________________</span><span>Equipe : ______________________</span></div>
+          <div class="card print-page">
+            <div class="detail-sub no-print">Emplacements hors structure MP/PF/OBD (bobines, zones diverses...). Cliquez une ligne pour le détail.</div>
+            <table class="data-table" id="otherTable"><thead><tr><th>Bin</th><th>HU</th><th>ART</th><th>Batchs</th><th>Master HU</th><th>Quantité Totale</th></tr></thead><tbody id="otherTableBody"></tbody></table>
+            <div class="print-footer"></div>
+          </div>
+        </section>
+
+        <section id="searchResultView" class="hidden">
+          <div class="print-header"><span>Date : ______________________</span><span>Inventoriste : ______________________</span><span>Equipe : ______________________</span></div>
+          <div class="btn-row no-print" style="margin-bottom:14px;">
+            <button class="btn btn-navy btn-sm" id="btnExportSearchPdf">Export PDF du Résultat</button>
+            <button class="btn btn-outline btn-sm" id="btnPrintSearch">Print Résultat</button>
+          </div>
+          <div class="card print-page" id="searchResultCard"><div class="print-footer"></div></div>
+        </section>
+      </div>
+    </div>
+    <!-- ============ PAGE : CODES-BARRES ============ -->
+    <div class="page hidden" id="page-barcode">
+      <div class="page-desc">Génération de codes-barres et QR codes pour les emplacements ou toute référence libre.</div>
+
+      <div class="card">
+        <h3 style="font-size:14px; color:#1D2240; margin-bottom:14px;">Génération Unitaire</h3>
+        <div class="form-grid">
+          <div class="form-field"><label>Valeur (ex: A-0-1)</label><input type="text" id="bcUnitValue" placeholder="A-0-1"></div>
+          <div class="form-field"><label>Type</label>
+            <select id="bcUnitType">
+              <option value="CODE128">Code128</option>
+              <option value="CODE39">Code39</option>
+              <option value="EAN13">EAN13</option>
+              <option value="QR">QR Code</option>
+            </select>
+          </div>
+        </div>
+        <div class="btn-row" style="margin-bottom:16px;">
+          <button class="btn btn-primary btn-sm" id="btnGenUnit">Générer</button>
+          <button class="btn btn-outline btn-sm" id="btnDownloadUnitPng">Télécharger PNG</button>
+          <button class="btn btn-outline btn-sm" id="btnDownloadUnitPdf">Télécharger PDF</button>
+        </div>
+        <div id="unitBarcodeOutput"></div>
+      </div>
+
+      <div class="card">
+        <h3 style="font-size:14px; color:#1D2240; margin-bottom:14px;">Génération en Masse</h3>
+        <div class="form-grid">
+          <div class="form-field" style="grid-column: 1 / -1;">
+            <label>Liste de valeurs (une par ligne)</label>
+            <textarea id="bcBulkValues" rows="5" placeholder="A-0-1&#10;A-0-2&#10;A-0-3"></textarea>
+          </div>
+          <div class="form-field"><label>Type</label>
+            <select id="bcBulkType">
+              <option value="CODE128">Code128</option>
+              <option value="CODE39">Code39</option>
+              <option value="EAN13">EAN13</option>
+              <option value="QR">QR Code</option>
+            </select>
+          </div>
+        </div>
+        <div class="btn-row" style="margin-bottom:16px;">
+          <button class="btn btn-primary btn-sm" id="btnGenBulk">Générer Tout</button>
+          <button class="btn btn-outline btn-sm" id="btnExportZip">Exporter ZIP (PNG)</button>
+          <button class="btn btn-outline btn-sm" id="btnExportBulkPdf">Exporter PDF</button>
+        </div>
+        <div class="barcode-grid" id="bulkBarcodeOutput"></div>
+      </div>
+    </div>
+
+    <!-- ============ PAGE : GESTION DES BINS ============ -->
+    <div class="page hidden" id="page-bins">
+      <div class="page-desc">Créateur automatique de listes de bins (racks × niveaux × positions) et export Excel.</div>
+
+      <div class="card">
+        <div class="form-grid">
+          <div class="form-field"><label>Racks (séparés par virgule)</label><input type="text" id="binGenRacks" value="A,B0,B1,C0,C1,D0,D1,E0,E1,F0,F1,G0,G1,H0,H1,I,J,K0,K1,L0,L1,M0,M1,N"></div>
+          <div class="form-field"><label>Niveau min</label><input type="number" id="binGenLevelMin" value="0"></div>
+          <div class="form-field"><label>Niveau max</label><input type="number" id="binGenLevelMax" value="4"></div>
+          <div class="form-field"><label>Position min</label><input type="number" id="binGenPosMin" value="1"></div>
+          <div class="form-field"><label>Position max</label><input type="number" id="binGenPosMax" value="21"></div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary btn-sm" id="btnGenerateBins">Générer la Liste de Bins</button>
+          <button class="btn btn-outline btn-sm" id="btnExportBinsExcel">Export Excel</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="table-toolbar">
+          <div id="binGenCount" style="font-size:12.5px; color:#777;">Aucune liste générée.</div>
+        </div>
+        <div class="table-wrap"><table class="data-table" id="binGenTable"><thead><tr><th>Bin</th><th>Rack</th><th>Niveau</th><th>Position</th></tr></thead><tbody id="binGenTableBody"></tbody></table></div>
+      </div>
+    </div>
+    <!-- ============ PAGE : ANALYSE HU ============ -->
+    <div class="page hidden" id="page-hu">
+      <div class="page-desc">Détection des anomalies liées aux Handling Units : HU orphelines, sans batch, sans emplacement, dupliquées.</div>
+      <div id="huEmpty" class="card"><div class="empty-state">Importez un fichier pour lancer l'analyse HU.</div></div>
+      <div id="huContent" class="hidden">
+        <div class="kpi-grid" id="huKpiGrid"></div>
+        <div class="btn-row no-print" style="margin-bottom:14px;">
+          <button class="btn btn-navy btn-sm" id="btnExportHuExcel">Export Excel</button>
+        </div>
+        <div class="card">
+          <h3 style="font-size:13px; color:#DC2626; margin-bottom:10px;">HU Orphelines (sans Highest Level HU)</h3>
+          <div class="table-wrap"><table class="data-table" id="huOrphanTable"><thead><tr><th>Bin</th><th>Material</th><th>HU</th><th>Batch</th><th>Quantity</th></tr></thead><tbody></tbody></table></div>
+        </div>
+        <div class="card">
+          <h3 style="font-size:13px; color:#DC2626; margin-bottom:10px;">HU Sans Batch</h3>
+          <div class="table-wrap"><table class="data-table" id="huNoBatchTable"><thead><tr><th>Bin</th><th>Material</th><th>HU</th><th>Highest Level HU</th><th>Quantity</th></tr></thead><tbody></tbody></table></div>
+        </div>
+        <div class="card">
+          <h3 style="font-size:13px; color:#DC2626; margin-bottom:10px;">HU Sans Emplacement (Storage Bin vide)</h3>
+          <div class="table-wrap"><table class="data-table" id="huNoBinTable"><thead><tr><th>Material</th><th>HU</th><th>Highest Level HU</th><th>Batch</th><th>Quantity</th></tr></thead><tbody></tbody></table></div>
+        </div>
+        <div class="card">
+          <h3 style="font-size:13px; color:#DC2626; margin-bottom:10px;">HU Dupliquées (même HU sur plusieurs bins)</h3>
+          <div class="table-wrap"><table class="data-table" id="huDupTable"><thead><tr><th>HU</th><th>Nb Bins</th><th>Bins</th><th>Materials</th></tr></thead><tbody></tbody></table></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ PAGE : ANALYSE BATCHS ============ -->
+    <div class="page hidden" id="page-batch">
+      <div class="page-desc">Détection des anomalies liées aux Batchs : dispersion, doublons, batchs sans HU.</div>
+      <div id="batchEmpty" class="card"><div class="empty-state">Importez un fichier pour lancer l'analyse Batchs.</div></div>
+      <div id="batchContent" class="hidden">
+        <div class="kpi-grid" id="batchKpiGrid"></div>
+        <div class="btn-row no-print" style="margin-bottom:14px;">
+          <button class="btn btn-navy btn-sm" id="btnExportBatchExcel">Export Excel</button>
+        </div>
+        <div class="card">
+          <h3 style="font-size:13px; color:#1D2240; margin-bottom:10px;">Vue d'ensemble par Batch</h3>
+          <div class="table-toolbar"><input type="text" class="table-search" id="batchTableSearch" placeholder="Filtrer par batch..."></div>
+          <div class="table-wrap"><table class="data-table" id="batchOverviewTable"><thead><tr><th>Batch</th><th>Quantité</th><th>Nb Bins</th></tr></thead><tbody></tbody></table></div>
+          <div class="pagination" id="batchPagination"></div>
+        </div>
+        <div class="card">
+          <h3 style="font-size:13px; color:#DC2626; margin-bottom:10px;">Batchs Dispersés (&gt;1 bin)</h3>
+          <div class="table-wrap"><table class="data-table" id="batchDispersedTable"><thead><tr><th>Batch</th><th>Nb Bins</th><th>Bins</th></tr></thead><tbody></tbody></table></div>
+        </div>
+        <div class="card">
+          <h3 style="font-size:13px; color:#DC2626; margin-bottom:10px;">Batchs Dupliqués (associés à plusieurs Materials)</h3>
+          <div class="table-wrap"><table class="data-table" id="batchDupTable"><thead><tr><th>Batch</th><th>Nb Materials</th><th>Materials</th></tr></thead><tbody></tbody></table></div>
+        </div>
+        <div class="card">
+          <h3 style="font-size:13px; color:#DC2626; margin-bottom:10px;">Batchs Sans HU</h3>
+          <div class="table-wrap"><table class="data-table" id="batchNoHuTable"><thead><tr><th>Bin</th><th>Material</th><th>Batch</th><th>Quantity</th></tr></thead><tbody></tbody></table></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ PAGE : ÉCARTS D'INVENTAIRE ============ -->
+    <div class="page hidden" id="page-gap">
+      <div class="page-desc">Comparaison SAP vs comptage physique. Écart = Compté − SAP. Les valeurs saisies sont conservées localement.</div>
+      <div id="gapEmpty" class="card"><div class="empty-state">Importez un fichier pour démarrer le contrôle des écarts.</div></div>
+      <div id="gapContent" class="hidden">
+        <div class="kpi-grid" id="gapKpiGrid"></div>
+        <div class="filters-row no-print">
+          <div class="form-field"><label>Filtrer par Bin</label><input type="text" id="gapFilterBin" placeholder="Ex: A-0"></div>
+          <div class="form-field"><label>Afficher</label>
+            <select id="gapFilterMode">
+              <option value="all">Tous les bins occupés</option>
+              <option value="counted">Uniquement comptés</option>
+              <option value="positive">Écart positif</option>
+              <option value="negative">Écart négatif</option>
+              <option value="zero">Écart nul</option>
+            </select>
+          </div>
+          <button class="btn btn-outline btn-sm" id="btnApplyGapFilter">Appliquer</button>
+          <button class="btn btn-navy btn-sm" id="btnExportGapExcel">Export Excel</button>
+          <button class="btn btn-outline btn-sm" id="btnSaveGap">Sauvegarder les Comptages</button>
+        </div>
+        <div class="card">
+          <div class="table-wrap"><table class="data-table" id="gapTable"><thead><tr><th>Bin</th><th>SAP (HU)</th><th>Compté</th><th>Écart</th><th>Statut</th></tr></thead><tbody id="gapTableBody"></tbody></table></div>
+          <div class="pagination" id="gapPagination"></div>
+        </div>
+      </div>
+    </div>
+    <!-- ============ PAGE : RAPPORT AUTOMATIQUE ============ -->
+    <div class="page hidden" id="page-report">
+      <div class="page-desc">Rapport de synthèse généré automatiquement à partir des données importées.</div>
+      <div id="reportEmpty" class="card"><div class="empty-state">Importez un fichier pour générer un rapport.</div></div>
+      <div id="reportContent" class="hidden">
+        <div class="btn-row no-print" style="margin-bottom:14px;">
+          <button class="btn btn-primary btn-sm" id="btnGenerateReport">Générer le Rapport</button>
+          <button class="btn btn-navy btn-sm" id="btnExportReportPdf">Export PDF</button>
+        </div>
+        <div class="card print-page" id="reportCard">
+          <div class="print-header"><span>Date : ______________________</span><span>Inventoriste : ______________________</span><span>Equipe : ______________________</span></div>
+          <div id="reportBody"><div class="empty-state">Cliquez sur "Générer le Rapport" pour créer la synthèse.</div></div>
+          <div class="print-footer"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ PAGE : HISTORIQUE LOCAL ============ -->
+    <div class="page hidden" id="page-history">
+      <div class="page-desc">Historique conservé localement (LocalStorage) : imports, rapports générés, comptages d'écarts, préférence de thème.</div>
+      <div class="btn-row no-print" style="margin-bottom:14px;">
+        <button class="btn btn-ghost btn-sm" id="btnClearHistory">Effacer l'Historique (Imports/Rapports)</button>
+        <button class="btn btn-ghost btn-sm" id="btnClearAllLocalData">Effacer Toutes les Données Enregistrées Localement</button>
+      </div>
+      <div class="card">
+        <h3 style="font-size:13px; color:#1D2240; margin-bottom:10px;">Imports SAP</h3>
+        <div class="table-wrap"><table class="data-table" id="historyImportsTable"><thead><tr><th>Date</th><th>Fichier</th><th>Lignes</th><th>Bins Détectés</th></tr></thead><tbody></tbody></table></div>
+      </div>
+      <div class="card">
+        <h3 style="font-size:13px; color:#1D2240; margin-bottom:10px;">Rapports Générés</h3>
+        <div class="table-wrap"><table class="data-table" id="historyReportsTable"><thead><tr><th>Date</th><th>Articles</th><th>Bins</th><th>Écarts</th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </div>
+
+  </div><!-- /.content -->
+</div><!-- /.app-shell -->
+<script>
+(function(){
+  "use strict";
+
+  /* ======================================================================
+     CONFIGURATION DES RACKS (structure MP/PF)
+     ====================================================================== */
+  var MP_RACKS = ["A","B0","B1","C0","C1","D0","D1","E0","E1","F0","F1","G0","G1","H0","H1","I"];
+  var MP_LEVELS = [4,3,2,1,0];
+  var MP_POSITIONS = 15;
+
+  var PF_RACKS = ["J","K0","K1","L0","L1","M0","M1","N"];
+  var PF_LEVELS = [3,2,1,0];
+  var PF_POSITIONS = 21;
+
+  var OBD_TPA = ["TPA1","TPA2","TPA3","TPA4","TPA5","TPA6"];
+
+  function buildBinUniverse(){
+    var keys = []; var meta = new Map();
+    MP_RACKS.forEach(function(r){ MP_LEVELS.forEach(function(l){ for (var p=1;p<=MP_POSITIONS;p++){ var k=r+"-"+l+"-"+p; keys.push(k); meta.set(k,{rack:r,level:l,pos:p,section:"MP"}); } }); });
+    PF_RACKS.forEach(function(r){ PF_LEVELS.forEach(function(l){ for (var p=1;p<=PF_POSITIONS;p++){ var k=r+"-"+l+"-"+p; keys.push(k); meta.set(k,{rack:r,level:l,pos:p,section:"PF"}); } }); });
+    return { keys: keys, meta: meta };
+  }
+  var BIN_UNIVERSE = buildBinUniverse();
+
+  var COLUMN_KEYWORDS = {
+    bin: ["storage bin","storagebin","bin","lgpla"],
+    material: ["material number","material","article","product"],
+    quantity: ["available stock","quantity","qty","stock"],
+    batch: ["batch number","batch","lot"],
+    highestLevelHu: ["highest level hu","highest-level hu","highest hu","parent hu","master hu","top hu"],
+    hu: ["handling unit","hu number","huid","hu"],
+    description: ["product short description","short description","material description","description","desc"]
+  };
+  var REQUIRED_FIELDS = ["bin","material","quantity","batch","highestLevelHu","hu"];
+  var DETECTION_ORDER = ["bin","material","quantity","batch","highestLevelHu","hu","description"];
+  var FIELD_LABELS = { bin:"Storage Bin", material:"Material", quantity:"Quantity", batch:"Batch", hu:"HU", highestLevelHu:"Highest Level HU", description:"Description (optionnel)" };
+
+  /* ======================================================================
+     ETAT GLOBAL
+     ====================================================================== */
+  var state = {
+    headers: [], rows: [], mapping: { bin:null, material:null, quantity:null, batch:null, highestLevelHu:null, hu:null, description:null },
+    fileName: "", fileSignature: "",
+    allLines: [], linesWithoutBin: [],
+    binIndex: new Map(), materialIndex: new Map(),
+    binAgg: new Map(), materialAgg: new Map(), obdData: new Map(),
+    binKeyList: [], articleList: [], ignoredLines: 0,
+    activeInvTab: "MP",
+    gapCounts: {},  // bin -> compté (persisté localStorage)
+    hasData: false
+  };
+
+  /* ======================================================================
+     UTILITAIRES
+     ====================================================================== */
+  function norm(s){ return String(s || "").toLowerCase().trim().replace(/[_\-\.]/g," ").replace(/\s+/g," "); }
+  function toNumber(v){
+    if (v===null||v===undefined||v==="") return 0;
+    var s = String(v).trim();
+    if (s === "") return 0;
+    // Gère les formats "1234.56", "1234,56", "1.234,56" (EU) et "1,234.56" (US)
+    var hasComma = s.indexOf(",") !== -1, hasDot = s.indexOf(".") !== -1;
+    if (hasComma && hasDot){
+      // Le séparateur décimal est celui qui apparaît en dernier
+      if (s.lastIndexOf(",") > s.lastIndexOf(".")){
+        s = s.replace(/\./g, "").replace(",", ".");
+      } else {
+        s = s.replace(/,/g, "");
+      }
+    } else if (hasComma && !hasDot){
+      // Une seule virgule et 1-2 chiffres après => décimale ; sinon séparateur de milliers
+      var parts = s.split(",");
+      if (parts.length === 2 && parts[1].length <= 2) s = parts[0] + "." + parts[1];
+      else s = s.replace(/,/g, "");
+    }
+    var n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
+  }
+  function formatNum(n){ if (Number.isInteger(n)) return String(n); return (Math.round(n*100)/100).toString(); }
+  function nowStamp(){ var d=new Date(); function pad(x){return String(x).padStart(2,"0");} return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())+" "+pad(d.getHours())+":"+pad(d.getMinutes())+":"+pad(d.getSeconds()); }
+  function escapeHtml(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+  function downloadBlob(blob, filename){ var a=document.createElement("a"); var url=URL.createObjectURL(blob); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function(){URL.revokeObjectURL(url);}, 2000); }
+  function stampPrintFooters(){
+    var text = "Generated by AZOUMAG INVENTORY SUITE PRO V3 at " + nowStamp() + "<br>AZOUMAG © 2026 — The Ultimate Online Solutions — All Rights Reserved 2026";
+    document.querySelectorAll(".print-footer").forEach(function(el){ el.innerHTML = text; });
+  }
+
+  function detectColumn(headers, keywords, usedIndices){
+    // Priorité 1 : recherche du meilleur mot-clé (le plus long/spécifique d'abord) sur toutes les colonnes,
+    // plutôt que la première colonne qui matche n'importe quel mot-clé.
+    var sortedKeywords = keywords.slice().sort(function(a,b){ return b.length - a.length; });
+    for (var k=0;k<sortedKeywords.length;k++){
+      var kw = sortedKeywords[k]; var isShort = kw.length <= 3;
+      for (var i=0;i<headers.length;i++){
+        if (usedIndices.indexOf(i) !== -1) continue;
+        var h = norm(headers[i]);
+        var match = false;
+        if (isShort){ var tokens = h.split(" "); match = tokens.indexOf(kw) !== -1 || h === kw; }
+        else { match = h.indexOf(kw) !== -1; }
+        if (match) return i;
+      }
+    }
+    return null;
+  }
+
+  /* ======================================================================
+     NAVIGATION SIDEBAR / PAGES
+     ====================================================================== */
+  var PAGE_TITLES = { dashboard:"Dashboard", import:"Import SAP", inventory:"Feuilles d'Inventaire", barcode:"Codes-barres",
+    bins:"Gestion des Bins", hu:"Analyse HU", batch:"Analyse Batchs", gap:"Écarts Inventaire", report:"Rapport", history:"Historique" };
+
+  function goToPage(page){
+    document.querySelectorAll(".nav-link").forEach(function(l){ l.classList.toggle("active", l.getAttribute("data-page") === page); });
+    document.querySelectorAll(".page").forEach(function(p){ p.classList.toggle("hidden", p.id !== "page-" + page); });
+    document.getElementById("pageTitle").textContent = PAGE_TITLES[page] || page;
+    if (page === "history") renderHistory();
+    if (page === "hu" && state.hasData) renderHuAnalysis();
+    if (page === "batch" && state.hasData) renderBatchAnalysis();
+    if (page === "gap" && state.hasData) renderGapTable();
+    if (page === "report") renderReportPage();
+    closeSidebar();
+  }
+
+  document.querySelectorAll(".nav-link").forEach(function(link){
+    link.addEventListener("click", function(){ goToPage(link.getAttribute("data-page")); });
+  });
+
+  /* ---------- SIDEBAR MOBILE (hamburger) ---------- */
+  var sidebarEl = document.getElementById("sidebar");
+  var sidebarOverlay = document.getElementById("sidebarOverlay");
+  function openSidebar(){ sidebarEl.classList.add("open"); sidebarOverlay.classList.add("show"); }
+  function closeSidebar(){ sidebarEl.classList.remove("open"); sidebarOverlay.classList.remove("show"); }
+  document.getElementById("btnHamburger").addEventListener("click", function(){
+    if (sidebarEl.classList.contains("open")) closeSidebar(); else openSidebar();
+  });
+  sidebarOverlay.addEventListener("click", closeSidebar);
+
+  /* ---------- THEME ---------- */
+  var THEME_KEY = "azoumag_theme";
+  function applyTheme(theme){
+    document.body.classList.toggle("theme-dark", theme === "dark");
+    document.getElementById("btnTheme").textContent = theme === "dark" ? "Mode Clair" : "Mode Sombre";
+  }
+  document.getElementById("btnTheme").addEventListener("click", function(){
+    var isDark = document.body.classList.contains("theme-dark");
+    var next = isDark ? "light" : "dark";
+    applyTheme(next);
+    try { localStorage.setItem(THEME_KEY, next); } catch(e){}
+    if (state.hasData && !document.getElementById("page-dashboard").classList.contains("hidden")) renderDashboard();
+  });
+  (function initTheme(){
+    var saved = null;
+    try { saved = localStorage.getItem(THEME_KEY); } catch(e){}
+    applyTheme(saved === "dark" ? "dark" : "light");
+  })();
+
+  /* ======================================================================
+     IMPORT FICHIER + PRÉVISUALISATION
+     ====================================================================== */
+  var dropZone = document.getElementById("dropZone");
+  var fileInput = document.getElementById("fileInput");
+  var pendingImport = null; // { headers, rows, mapping } en attente de confirmation
+
+  document.getElementById("btnBrowse").addEventListener("click", function(){ fileInput.click(); });
+  dropZone.addEventListener("click", function(e){ if (e.target.id !== "btnBrowse") fileInput.click(); });
+  dropZone.addEventListener("dragover", function(e){ e.preventDefault(); dropZone.classList.add("dragover"); });
+  dropZone.addEventListener("dragleave", function(){ dropZone.classList.remove("dragover"); });
+  dropZone.addEventListener("drop", function(e){ e.preventDefault(); dropZone.classList.remove("dragover"); if (e.dataTransfer.files && e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+  fileInput.addEventListener("change", function(e){ if (e.target.files && e.target.files[0]) handleFile(e.target.files[0]); });
+
+  function handleFile(file){
+    if (typeof XLSX === "undefined"){
+      alert("La bibliothèque de lecture Excel (XLSX) n'a pas pu se charger. Vérifiez votre connexion internet lors du premier chargement de la page, puis réessayez.");
+      return;
+    }
+    var reader = new FileReader();
+    reader.onload = function(evt){
+      var data = new Uint8Array(evt.target.result);
+      var wb = XLSX.read(data, { type: "array" });
+      var ws = wb.Sheets[wb.SheetNames[0]];
+      var json = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" });
+      if (!json.length){ alert("Fichier vide ou illisible."); return; }
+      var headers = json[0].map(function(h){ return String(h); });
+      var rows = json.slice(1).filter(function(r){ return r.some(function(c){ return String(c).trim() !== ""; }); });
+
+      var mapping = { bin:null, material:null, quantity:null, batch:null, highestLevelHu:null, hu:null, description:null };
+      var used = [];
+      DETECTION_ORDER.forEach(function(field){
+        var idx = detectColumn(headers, COLUMN_KEYWORDS[field], used);
+        mapping[field] = idx;
+        if (idx !== null) used.push(idx);
+      });
+
+      pendingImport = { headers: headers, rows: rows, mapping: mapping, fileName: file.name, fileSize: file.size, fileLastModified: file.lastModified };
+
+      var missing = REQUIRED_FIELDS.filter(function(f){ return mapping[f] === null; });
+      if (missing.length){ showMappingUI(); } else { showPreview(); }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function showMappingUI(){
+    document.getElementById("mappingCard").classList.remove("hidden");
+    document.getElementById("previewCard").classList.add("hidden");
+    var grid = document.getElementById("mappingGrid");
+    grid.innerHTML = "";
+    var headers = pendingImport.headers, mapping = pendingImport.mapping;
+
+    DETECTION_ORDER.forEach(function(field){
+      var isRequired = REQUIRED_FIELDS.indexOf(field) !== -1;
+      var isDetected = mapping[field] !== null;
+      var wrap = document.createElement("div");
+      wrap.className = "form-field " + (isDetected ? "detected" : (isRequired ? "missing" : "detected"));
+      var label = document.createElement("label"); label.textContent = FIELD_LABELS[field];
+      var select = document.createElement("select"); select.id = "mapSelect_" + field;
+      var optNone = document.createElement("option"); optNone.value=""; optNone.textContent = isRequired ? "-- Sélectionner --" : "-- Aucune --";
+      select.appendChild(optNone);
+      headers.forEach(function(h, idx){
+        var opt = document.createElement("option"); opt.value = idx; opt.textContent = h || ("Colonne " + (idx+1));
+        if (mapping[field] === idx) opt.selected = true;
+        select.appendChild(opt);
+      });
+      var status = document.createElement("div"); status.className = "status";
+      status.textContent = isDetected ? "Détectée automatiquement" : (isRequired ? "Non détectée — choix requis" : "Non détectée — facultatif");
+      wrap.appendChild(label); wrap.appendChild(select); wrap.appendChild(status);
+      grid.appendChild(wrap);
+    });
+  }
+
+  document.getElementById("btnValidateMapping").addEventListener("click", function(){
+    var ok = true;
+    DETECTION_ORDER.forEach(function(field){
+      var sel = document.getElementById("mapSelect_" + field);
+      var val = sel.value; var isRequired = REQUIRED_FIELDS.indexOf(field) !== -1;
+      if (val === ""){ if (isRequired){ ok=false; sel.style.borderColor="#DC2626"; } else { pendingImport.mapping[field]=null; } }
+      else { pendingImport.mapping[field] = parseInt(val,10); sel.style.borderColor = "#16A34A"; }
+    });
+    if (!ok){ alert("Veuillez sélectionner toutes les colonnes requises."); return; }
+    document.getElementById("mappingCard").classList.add("hidden");
+    showPreview();
+  });
+
+  function showPreview(){
+    document.getElementById("previewCard").classList.remove("hidden");
+    var table = document.getElementById("previewTable");
+    var headers = pendingImport.headers, rows = pendingImport.rows.slice(0, 10);
+    var thead = "<thead><tr>" + headers.map(function(h){ return "<th>" + escapeHtml(h) + "</th>"; }).join("") + "</tr></thead>";
+    var tbody = "<tbody>" + rows.map(function(r){
+      return "<tr>" + headers.map(function(h,i){ return "<td>" + escapeHtml(r[i]) + "</td>"; }).join("") + "</tr>";
+    }).join("") + "</tbody>";
+    table.innerHTML = thead + tbody;
+  }
+
+  document.getElementById("btnCancelPreview").addEventListener("click", function(){
+    pendingImport = null; fileInput.value = "";
+    document.getElementById("previewCard").classList.add("hidden");
+  });
+
+  document.getElementById("btnConfirmImport").addEventListener("click", function(){
+    if (!pendingImport) return;
+    state.headers = pendingImport.headers; state.rows = pendingImport.rows;
+    state.mapping = pendingImport.mapping; state.fileName = pendingImport.fileName;
+    // Signature de fichier robuste (nom + taille + date de modif + nb lignes) pour éviter les collisions
+    // entre deux fichiers différents portant le même nom lors de la sauvegarde locale des écarts.
+    state.fileSignature = [pendingImport.fileName, pendingImport.fileSize||0, pendingImport.fileLastModified||0, state.rows.length].join("__");
+    processData();
+    state.hasData = true;
+    saveImportToHistory();
+    document.getElementById("previewCard").classList.add("hidden");
+    fileInput.value = "";
+    pendingImport = null;
+    refreshAllModules();
+    goToPage("dashboard");
+  });
+
+  /* ======================================================================
+     TRAITEMENT DES DONNEES
+     ====================================================================== */
+  function parseBinCode(binRaw){
+    var raw = String(binRaw || "").trim().toUpperCase();
+    if (!raw) return null; // Storage Bin vide -> ligne ignorée
+    if (OBD_TPA.indexOf(raw) !== -1) return { section: "OBD", tpa: raw };
+
+    var parts = raw.split("-").map(function(p){ return p.trim(); }).filter(function(p){ return p !== ""; });
+    if (parts.length === 3){
+      var rack = parts[0]; var levelNum = parseInt(parts[1],10); var posNum = parseInt(parts[2],10);
+      if (!isNaN(levelNum) && !isNaN(posNum)){
+        if (MP_RACKS.indexOf(rack)!==-1 && MP_LEVELS.indexOf(levelNum)!==-1 && posNum>=1 && posNum<=MP_POSITIONS){
+          return { section:"MP", rack:rack, level:levelNum, pos:posNum, bin: rack+"-"+levelNum+"-"+posNum };
+        }
+        if (PF_RACKS.indexOf(rack)!==-1 && PF_LEVELS.indexOf(levelNum)!==-1 && posNum>=1 && posNum<=PF_POSITIONS){
+          return { section:"PF", rack:rack, level:levelNum, pos:posNum, bin: rack+"-"+levelNum+"-"+posNum };
+        }
+      }
+    }
+    return { section: "OTHER", rack: null, level: null, pos: null, bin: raw };
+  }
+
+  function processData(){
+    state.allLines = []; state.linesWithoutBin = [];
+    state.binIndex = new Map(); state.materialIndex = new Map();
+    state.binAgg = new Map(); state.materialAgg = new Map(); state.obdData = new Map();
+    state.ignoredLines = 0;
+
+    var m = state.mapping; var hasDescription = m.description !== null;
+
+    state.rows.forEach(function(row){
+      var binRaw = row[m.bin];
+      var material = String(row[m.material] || "").trim();
+      var qty = toNumber(row[m.quantity]);
+      var batch = String(row[m.batch] || "").trim();
+      var hu = String(row[m.hu] || "").trim();
+      var highestLevelHu = String(row[m.highestLevelHu] || "").trim();
+      var description = hasDescription ? String(row[m.description] || "").trim() : "";
+
+      var parsed = parseBinCode(binRaw);
+      if (!parsed){
+        state.ignoredLines++;
+        if (material || hu || batch){
+          state.linesWithoutBin.push({ material:material, hu:hu, highestLevelHu:highestLevelHu, batch:batch, quantity:qty, description:description });
+        }
+        return;
+      }
+
+      if (parsed.section === "OBD"){
+        var key = parsed.tpa + "|" + material;
+        if (!state.obdData.has(key)) state.obdData.set(key, { tpa: parsed.tpa, material: material, qty: 0 });
+        state.obdData.get(key).qty += qty;
+        return;
+      }
+
+      var line = { bin: parsed.bin, material: material, hu: hu, highestLevelHu: highestLevelHu, batch: batch, quantity: qty, description: description,
+        rack: parsed.rack, level: parsed.level, pos: parsed.pos, section: parsed.section };
+      state.allLines.push(line);
+
+      if (!state.binIndex.has(line.bin)) state.binIndex.set(line.bin, []);
+      state.binIndex.get(line.bin).push(line);
+
+      if (material){
+        if (!state.materialIndex.has(material)) state.materialIndex.set(material, []);
+        state.materialIndex.get(material).push(line);
+      }
+
+      if (!state.binAgg.has(line.bin)){
+        state.binAgg.set(line.bin, { count:0, materials:new Set(), batches:new Set(), masterHus:new Set(), qtySum:0,
+          rack:parsed.rack, level:parsed.level, pos:parsed.pos, section:parsed.section });
+      }
+      var ba = state.binAgg.get(line.bin);
+      ba.count += 1;
+      if (material) ba.materials.add(material);
+      if (batch) ba.batches.add(batch);
+      if (highestLevelHu) ba.masterHus.add(highestLevelHu);
+      ba.qtySum += qty;
+
+      if (material){
+        if (!state.materialAgg.has(material)) state.materialAgg.set(material, { bins:new Set(), count:0, batches:new Set(), masterHus:new Set(), qtySum:0, description:"" });
+        var ma = state.materialAgg.get(material);
+        ma.bins.add(line.bin); ma.count += 1;
+        if (batch) ma.batches.add(batch);
+        if (highestLevelHu) ma.masterHus.add(highestLevelHu);
+        ma.qtySum += qty;
+        if (description && !ma.description) ma.description = description;
+      }
+    });
+
+    var otherBinKeys = [];
+    state.binAgg.forEach(function(agg, key){ if (agg.section === "OTHER") otherBinKeys.push(key); });
+    otherBinKeys.sort();
+    state.binKeyList = BIN_UNIVERSE.keys.concat(otherBinKeys);
+    state.articleList = Array.from(state.materialAgg.entries()).map(function(entry){ return { code: entry[0], description: entry[1].description || "" }; })
+      .sort(function(a,b){ return a.code.localeCompare(b.code); });
+
+    // Restaurer les comptages d'écart sauvegardés localement pour ce fichier
+    loadGapCounts();
+  }
+
+  function safeRun(fn, label){
+    try { fn(); } catch(e){ console.error("AZOUMAG Suite — erreur dans le module '" + label + "':", e); }
+  }
+
+  function refreshAllModules(){
+    safeRun(renderDashboard, "Dashboard");
+    safeRun(renderInventoryModule, "Feuilles d'Inventaire");
+    safeRun(function(){ if (!document.getElementById("page-hu").classList.contains("hidden")) renderHuAnalysis(); }, "Analyse HU");
+    safeRun(function(){ if (!document.getElementById("page-batch").classList.contains("hidden")) renderBatchAnalysis(); }, "Analyse Batchs");
+    safeRun(function(){ if (!document.getElementById("page-gap").classList.contains("hidden")) renderGapTable(); }, "Écarts Inventaire");
+  }
+
+  /* ======================================================================
+     DASHBOARD : KPI + GRAPHIQUES + HEATMAP
+     ====================================================================== */
+  var chartRack = null, chartSection = null, chartZone = null, chartBinsStatus = null, chartConformite = null,
+      chartTopArticles = null, chartDataQuality = null, chartHuDistribution = null;
+
+  function huColorClass(hu){ if (hu===0) return "hu-0"; if (hu<=20) return "hu-low"; if (hu<=50) return "hu-mid"; return "hu-high"; }
+  function huHexColor(hu){ if (hu===0) return "#16A34A"; if (hu<=20) return "#DBEAFE"; if (hu<=50) return "#F37021"; return "#DC2626"; }
+
+  function renderDashboard(){
+    if (!state.hasData){
+      document.getElementById("dashboardEmpty").classList.remove("hidden");
+      document.getElementById("dashboardContent").classList.add("hidden");
+      return;
+    }
+    document.getElementById("dashboardEmpty").classList.add("hidden");
+    document.getElementById("dashboardContent").classList.remove("hidden");
+
+    var totalHu = 0, binsVides = 0, binsOccupes = 0, binsCritiques = 0, binsAutres = 0;
+    var totalBatches = new Set(), totalMasterHus = new Set(), totalQty = 0;
+    var zonesOccupees = new Set();
+
+    BIN_UNIVERSE.keys.forEach(function(binKey){
+      var entry = state.binAgg.get(binKey);
+      var hu = entry ? entry.count : 0;
+      if (hu === 0) binsVides++; else { binsOccupes++; zonesOccupees.add(entry.rack); }
+      if (hu > 50) binsCritiques++;
+    });
+    state.binAgg.forEach(function(entry){
+      totalHu += entry.count; totalQty += entry.qtySum;
+      entry.batches.forEach(function(b){ totalBatches.add(b); });
+      entry.masterHus.forEach(function(mh){ totalMasterHus.add(mh); });
+      if (entry.section === "OTHER") binsAutres++;
+    });
+    var totalBins = BIN_UNIVERSE.keys.length;
+    var totalZones = zonesOccupees.size + (state.obdData.size ? 1 : 0) + (binsAutres ? 1 : 0);
+    var gapStats = computeGapStats();
+    var conformite = gapStats.countedTotal > 0 ? Math.round((gapStats.zero / gapStats.countedTotal) * 100) : 100;
+
+    var occupationPct = totalBins > 0 ? Math.round((binsOccupes / totalBins) * 100) : 0;
+
+    var kpis = [
+      { label:"Total Bins", value: totalBins },
+      { label:"Total Materials", value: state.materialAgg.size },
+      { label:"Total HU", value: totalHu },
+      { label:"Total Highest Level HU", value: totalMasterHus.size },
+      { label:"Total Batch", value: totalBatches.size },
+      { label:"Total Stock", value: formatNum(totalQty) },
+      { label:"Total Zones", value: totalZones },
+      { label:"Total Écarts", value: gapStats.nonZero, cls: gapStats.nonZero>0 ? "alert":"" },
+      { label:"Taux de Conformité", value: conformite + "%", cls: conformite>=95 ? "good" : (conformite<80?"alert":""), progress: conformite, progressColor: conformite>=95?"#16A34A":(conformite<80?"#DC2626":"#F37021") },
+      { label:"Bins Vides", value: binsVides },
+      { label:"Bins Occupés (" + occupationPct + "%)", value: binsOccupes, progress: occupationPct, progressColor:"#F37021" },
+      { label:"Bins Critiques (HU>50)", value: binsCritiques, cls: binsCritiques>0?"alert":"" }
+    ];
+    document.getElementById("kpiGrid").innerHTML = kpis.map(function(k){
+      var progressHtml = (k.progress !== undefined) ? '<div class="kpi-progress-track"><div class="kpi-progress-fill" style="width:' + Math.min(100,Math.max(0,k.progress)) + '%; background:' + k.progressColor + ';"></div></div>' : '';
+      return '<div class="kpi-card ' + (k.cls||"") + '"><div class="kv">' + escapeHtml(k.value) + '</div><div class="kl">' + escapeHtml(k.label) + '</div>' + progressHtml + '</div>';
+    }).join("");
+
+    renderChartsAndHeatmap({ binsVides: binsVides, binsOccupes: binsOccupes, binsCritiques: binsCritiques, conformite: conformite, gapStats: gapStats });
+  }
+
+  function renderChartsAndHeatmap(stats){
+    stats = stats || { binsVides:0, binsOccupes:0, binsCritiques:0, conformite:100, gapStats:{positive:0,negative:0,zero:0} };
+    var chartTextColor = document.body.classList.contains("theme-dark") ? "#EDEEF5" : "#1D2240";
+    var chartsAvailable = (typeof Chart !== "undefined");
+    var banner = document.getElementById("chartsUnavailableBanner");
+    if (banner) banner.classList.toggle("hidden", chartsAvailable);
+
+    if (chartsAvailable){
+      try { drawAllCharts(stats, chartTextColor); }
+      catch(e){ console.error("AZOUMAG Suite — erreur lors du dessin des graphiques:", e); if (banner) banner.classList.remove("hidden"); }
+    }
+
+    renderHeatmap(); // ne dépend pas de Chart.js — toujours exécutée
+  }
+
+  function drawAllCharts(stats, chartTextColor){
+    // --- Répartition par rack (HU) ---
+    var allRacks = MP_RACKS.concat(PF_RACKS);
+    var rackValues = allRacks.map(function(r){
+      var sum = 0;
+      state.binAgg.forEach(function(entry){ if (entry.rack === r) sum += entry.count; });
+      return sum;
+    });
+    var ctxRack = document.getElementById("chartRack").getContext("2d");
+    if (chartRack) chartRack.destroy();
+    chartRack = new Chart(ctxRack, { type: "bar", data: { labels: allRacks, datasets: [{ label:"HU", data: rackValues, backgroundColor:"#F37021" }] },
+      options: { responsive:true, plugins:{ legend:{display:false} }, scales:{ x:{ticks:{color:chartTextColor}}, y:{ticks:{color:chartTextColor}} } } });
+
+    // --- MP/PF/TPA/Autres pie ---
+    var sumMp=0, sumPf=0, sumOther=0;
+    state.binAgg.forEach(function(entry){ if (entry.section==="MP") sumMp+=entry.count; else if (entry.section==="PF") sumPf+=entry.count; else if (entry.section==="OTHER") sumOther+=entry.count; });
+    var sumTpa = 0; state.obdData.forEach(function(v){ sumTpa += v.qty; });
+    var ctxSection = document.getElementById("chartSection").getContext("2d");
+    if (chartSection) chartSection.destroy();
+    chartSection = new Chart(ctxSection, { type:"pie", data:{ labels:["MP","PF","TPA (OBD)","Autres"], datasets:[{ data:[sumMp,sumPf,sumTpa,sumOther], backgroundColor:["#1D2240","#F37021","#16A34A","#DC2626"] }] },
+      options:{ responsive:true, plugins:{ legend:{ position:"bottom", labels:{color:chartTextColor} } } } });
+
+    // --- Stock (quantité) par zone ---
+    var qtyMp=0, qtyPf=0, qtyOther=0;
+    state.binAgg.forEach(function(entry){ if (entry.section==="MP") qtyMp+=entry.qtySum; else if (entry.section==="PF") qtyPf+=entry.qtySum; else if (entry.section==="OTHER") qtyOther+=entry.qtySum; });
+    var qtyTpa = 0; state.obdData.forEach(function(v){ qtyTpa += v.qty; });
+    var ctxZone = document.getElementById("chartZone").getContext("2d");
+    if (chartZone) chartZone.destroy();
+    chartZone = new Chart(ctxZone, { type:"bar", data:{ labels:["MP","PF","TPA (OBD)","Autres"], datasets:[{ label:"Quantité", data:[qtyMp,qtyPf,qtyTpa,qtyOther], backgroundColor:"#1D2240" }] },
+      options:{ responsive:true, indexAxis:"y", plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:chartTextColor}}, y:{ticks:{color:chartTextColor}} } } });
+
+    // --- Occupation des bins (doughnut : vides / occupés non-critiques / critiques) ---
+    var binsOccupesNonCritiques = Math.max(0, stats.binsOccupes - stats.binsCritiques);
+    var ctxBinsStatus = document.getElementById("chartBinsStatus").getContext("2d");
+    if (chartBinsStatus) chartBinsStatus.destroy();
+    chartBinsStatus = new Chart(ctxBinsStatus, { type:"doughnut",
+      data:{ labels:["Vides","Occupés","Critiques (HU>50)"], datasets:[{ data:[stats.binsVides, binsOccupesNonCritiques, stats.binsCritiques], backgroundColor:["#16A34A","#DBEAFE","#DC2626"] }] },
+      options:{ responsive:true, cutout:"70%", plugins:{ legend:{ position:"bottom", labels:{color:chartTextColor, font:{size:10.5}} } } } });
+    var totalBinsForPct = stats.binsVides + stats.binsOccupes;
+    var occPct = totalBinsForPct > 0 ? Math.round((stats.binsOccupes/totalBinsForPct)*100) : 0;
+    document.getElementById("chartBinsStatusCenter").innerHTML = '<div class="cv">' + occPct + '%</div><div class="cl">Occupés</div>';
+
+    // --- Gauge Taux de conformité (doughnut conforme / non conforme) ---
+    var ctxConf = document.getElementById("chartConformite").getContext("2d");
+    if (chartConformite) chartConformite.destroy();
+    var nonConformeCount = stats.gapStats.positive + stats.gapStats.negative;
+    var confColor = stats.conformite>=95 ? "#16A34A" : (stats.conformite<80 ? "#DC2626" : "#F37021");
+    chartConformite = new Chart(ctxConf, { type:"doughnut",
+      data:{ labels:["Conforme","Non Conforme"], datasets:[{ data:[stats.gapStats.zero, nonConformeCount || (stats.gapStats.countedTotal===0?1:0)], backgroundColor:[confColor, "#EFEFEF"] }] },
+      options:{ responsive:true, cutout:"70%", plugins:{ legend:{ position:"bottom", labels:{color:chartTextColor, font:{size:10.5}} } } } });
+    document.getElementById("chartConformiteCenter").innerHTML = '<div class="cv">' + stats.conformite + '%</div><div class="cl">' + (stats.gapStats.countedTotal ? "Sur "+stats.gapStats.countedTotal+" comptés" : "Aucun comptage") + '</div>';
+
+    // --- Top 10 Articles par quantité ---
+    var topArticles = Array.from(state.materialAgg.entries()).map(function(entry){ return { code: entry[0], qty: entry[1].qtySum }; })
+      .sort(function(a,b){ return b.qty - a.qty; }).slice(0, 10);
+    var ctxTop = document.getElementById("chartTopArticles").getContext("2d");
+    if (chartTopArticles) chartTopArticles.destroy();
+    chartTopArticles = new Chart(ctxTop, { type:"bar",
+      data:{ labels: topArticles.map(function(a){ return a.code; }), datasets:[{ label:"Quantité", data: topArticles.map(function(a){ return a.qty; }), backgroundColor:"#F37021" }] },
+      options:{ responsive:true, indexAxis:"y", plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:chartTextColor}}, y:{ticks:{color:chartTextColor, font:{size:10}}} } } });
+
+    // --- Qualité des données : anomalies HU/Batch ---
+    var huA = computeHuAnalysis();
+    var batchA = computeBatchAnalysis();
+    var qualityLabels = ["HU Orphelines","HU Sans Batch","HU Sans Emplacement","HU Dupliquées","Batchs Dispersés","Batchs Dupliqués","Batchs Sans HU"];
+    var qualityValues = [a_len(huA.orphan), a_len(huA.noBatch), a_len(huA.noBin), a_len(huA.duplicated), a_len(batchA.dispersed), a_len(batchA.duplicated), a_len(batchA.noHu)];
+    var ctxQuality = document.getElementById("chartDataQuality").getContext("2d");
+    if (chartDataQuality) chartDataQuality.destroy();
+    chartDataQuality = new Chart(ctxQuality, { type:"bar",
+      data:{ labels: qualityLabels, datasets:[{ label:"Anomalies", data: qualityValues, backgroundColor:"#DC2626" }] },
+      options:{ responsive:true, plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:chartTextColor, font:{size:9.5}}}, y:{ticks:{color:chartTextColor}} } } });
+
+    // --- Distribution HU par bin (histogramme par tranche) ---
+    var buckets = { "0":0, "1-20":0, "21-50":0, ">50":0 };
+    state.binAgg.forEach(function(entry){
+      var hu = entry.count;
+      if (hu===0) buckets["0"]++; else if (hu<=20) buckets["1-20"]++; else if (hu<=50) buckets["21-50"]++; else buckets[">50"]++;
+    });
+    var ctxHuDist = document.getElementById("chartHuDistribution").getContext("2d");
+    if (chartHuDistribution) chartHuDistribution.destroy();
+    chartHuDistribution = new Chart(ctxHuDist, { type:"bar",
+      data:{ labels:["HU = 0","HU 1–20","HU 21–50","HU > 50"], datasets:[{ label:"Nb de Bins", data:[buckets["0"],buckets["1-20"],buckets["21-50"],buckets[">50"]], backgroundColor:["#16A34A","#DBEAFE","#F37021","#DC2626"] }] },
+      options:{ responsive:true, plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:chartTextColor}}, y:{ticks:{color:chartTextColor}} } } });
+  }
+  function a_len(arr){ return arr ? arr.length : 0; }
+
+  function renderHeatmap(){
+    var hmContainer = document.getElementById("heatmapContainer");
+    var html = "";
+    [ {racks:MP_RACKS, levels:MP_LEVELS, positions:MP_POSITIONS}, {racks:PF_RACKS, levels:PF_LEVELS, positions:PF_POSITIONS} ].forEach(function(group){
+      group.racks.forEach(function(rack){
+        html += '<div class="heatmap-row"><div class="heatmap-rack-label">' + escapeHtml(rack) + '</div>';
+        group.levels.forEach(function(level){
+          var sum = 0, cnt = 0;
+          for (var p=1;p<=group.positions;p++){
+            var entry = state.binAgg.get(rack+"-"+level+"-"+p);
+            sum += entry ? entry.count : 0; cnt++;
+          }
+          var avg = cnt ? sum/cnt : 0;
+          html += '<div class="heatmap-cell" style="background:' + huHexColor(Math.round(avg)) + ';" title="' + escapeHtml(rack) + ' niveau ' + level + ' — moyenne HU: ' + formatNum(avg) + '"></div>';
+        });
+        html += '</div>';
+      });
+    });
+    hmContainer.innerHTML = html;
+  }
+
+  /* ======================================================================
+     MODULE INVENTAIRE (MP / PF / OBD / AUTRES) — recherche intelligente
+     ====================================================================== */
+  function binCellHtml(binKey){
+    var entry = state.binAgg.get(binKey);
+    var hu = entry ? entry.count : 0;
+    var art = entry ? entry.materials.size : 0;
+    var cls = "bin-cell " + huColorClass(hu);
+    return '<div class="' + cls + '" data-bin="' + escapeHtml(binKey) + '">' +
+      '<div class="bin-code">' + escapeHtml(binKey) + '</div><div class="bin-hu-big">' + hu + '</div><div class="bin-art">ART: ' + art + '</div></div>';
+  }
+
+  function renderRacks(section){
+    var racks = section==="MP" ? MP_RACKS : PF_RACKS;
+    var levels = section==="MP" ? MP_LEVELS : PF_LEVELS;
+    var positions = section==="MP" ? MP_POSITIONS : PF_POSITIONS;
+    var container = document.getElementById(section==="MP" ? "rackContainerMP" : "rackContainerPF");
+    var racksPerPage = section==="MP" ? 4 : 3;
+    var html = "";
+    racks.forEach(function(rack, ri){
+      if (ri % racksPerPage === 0){ if (ri>0) html += "</div>"; html += '<div class="print-page">'; }
+      html += '<div class="rack-block" data-rack="' + escapeHtml(rack) + '"><div class="rack-title">RACK ' + escapeHtml(rack) + '</div>';
+      levels.forEach(function(level){
+        html += '<div class="level-row"><div class="level-label">Niveau ' + level + '</div><div class="level-cells">';
+        for (var p=1;p<=positions;p++) html += binCellHtml(rack+"-"+level+"-"+p);
+        html += '</div></div>';
+      });
+      html += '</div>';
+      if (ri===racks.length-1) html += "</div>";
+    });
+    container.innerHTML = html;
+    Array.prototype.forEach.call(container.querySelectorAll(".bin-cell"), function(cell){
+      cell.addEventListener("click", function(){ searchBinInput.value = cell.getAttribute("data-bin"); showBinDetails(cell.getAttribute("data-bin")); });
+    });
+  }
+
+  function renderObd(){
+    var tbody = document.getElementById("obdTableBody"); tbody.innerHTML = "";
+    var rowsArr = Array.from(state.obdData.values()).sort(function(a,b){ if (a.tpa!==b.tpa) return a.tpa.localeCompare(b.tpa); return a.material.localeCompare(b.material); });
+    if (!rowsArr.length){ tbody.innerHTML = '<tr><td colspan="3" class="empty-state">Aucune donnée OBD (TPA1–TPA6) détectée</td></tr>'; return; }
+    rowsArr.forEach(function(r){ var tr=document.createElement("tr"); tr.innerHTML = '<td>'+escapeHtml(r.tpa)+'</td><td>'+escapeHtml(r.material)+'</td><td>'+formatNum(r.qty)+'</td>'; tbody.appendChild(tr); });
+  }
+
+  function renderOther(){
+    var tbody = document.getElementById("otherTableBody"); tbody.innerHTML = "";
+    var entries = []; state.binAgg.forEach(function(agg,key){ if (agg.section==="OTHER") entries.push([key,agg]); });
+    entries.sort(function(a,b){ return a[0].localeCompare(b[0]); });
+    if (!entries.length){ tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Aucun bin "Autres" détecté</td></tr>'; return; }
+    entries.forEach(function(pair){
+      var key=pair[0], agg=pair[1]; var tr=document.createElement("tr"); tr.style.cursor="pointer";
+      tr.innerHTML = '<td>'+escapeHtml(key)+'</td><td>'+agg.count+'</td><td>'+agg.materials.size+'</td><td>'+agg.batches.size+'</td><td>'+agg.masterHus.size+'</td><td>'+formatNum(agg.qtySum)+'</td>';
+      tr.addEventListener("click", function(){ searchBinInput.value=key; showBinDetails(key); });
+      tbody.appendChild(tr);
+    });
+  }
+
+  function renderInventoryModule(){
+    if (!state.hasData){ document.getElementById("inventoryEmpty").classList.remove("hidden"); document.getElementById("inventoryContent").classList.add("hidden"); return; }
+    document.getElementById("inventoryEmpty").classList.add("hidden");
+    document.getElementById("inventoryContent").classList.remove("hidden");
+    renderRacks("MP"); renderRacks("PF"); renderObd(); renderOther();
+
+    // Diagnostic : compter les lignes par section pour ouvrir automatiquement l'onglet qui contient réellement des données
+    var sumMp=0, sumPf=0, sumOther=0;
+    state.binAgg.forEach(function(entry){ if (entry.section==="MP") sumMp+=entry.count; else if (entry.section==="PF") sumPf+=entry.count; else if (entry.section==="OTHER") sumOther+=entry.count; });
+    var sumObd = state.obdData.size;
+
+    var banner = document.getElementById("inventoryDiagBanner");
+    if (sumMp===0 && sumPf===0 && (sumOther>0 || sumObd>0)){
+      var target = sumOther >= sumObd ? "OTHER" : "OBD";
+      var targetLabel = sumOther >= sumObd ? "AUTRES" : "TPA (OBD)";
+      banner.innerHTML = "Aucune donnée MP/PF détectée avec le format d'emplacement attendu (RACK-NIVEAU-POSITION). Vos données ont été classées dans l'onglet <strong>" + escapeHtml(targetLabel) + "</strong> — affiché automatiquement ci-dessous.";
+      banner.classList.remove("hidden");
+      switchInvTab(target);
+    } else {
+      banner.classList.add("hidden");
+      switchInvTab(state.activeInvTab && ["MP","PF","OBD","OTHER"].indexOf(state.activeInvTab)!==-1 ? state.activeInvTab : "MP");
+    }
+  }
+
+  function switchInvTab(tab){
+    state.activeInvTab = tab;
+    document.querySelectorAll(".inv-tab-btn").forEach(function(b){ b.classList.toggle("active", b.getAttribute("data-tab")===tab); });
+    ["MP","PF","OBD","OTHER"].forEach(function(t){ document.getElementById("view"+t).classList.toggle("hidden", t!==tab); });
+    document.getElementById("searchResultView").classList.add("hidden");
+    document.getElementById("tabsBar").classList.remove("hidden");
+  }
+  document.querySelectorAll(".inv-tab-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){ clearSearchInputs(); switchInvTab(btn.getAttribute("data-tab")); });
+  });
+
+  /* ---- Recherche intelligente Bin / Article / Rack ---- */
+  var searchBinInput = document.getElementById("searchBin");
+  var searchArticleInput = document.getElementById("searchArticle");
+  var searchRackInput = document.getElementById("searchRack");
+  var acBin = document.getElementById("acBin"), acArticle = document.getElementById("acArticle"), acRack = document.getElementById("acRack");
+  var ALL_RACKS = MP_RACKS.concat(PF_RACKS);
+  var MAX_SUGGESTIONS = 20;
+
+  function clearSearchInputs(){ searchBinInput.value=""; searchArticleInput.value=""; searchRackInput.value=""; hideAllDropdowns(); }
+  function hideAllDropdowns(){ acBin.classList.add("hidden"); acArticle.classList.add("hidden"); acRack.classList.add("hidden"); }
+
+  function renderDropdown(dropdownEl, items, onPick){
+    if (!items.length){ dropdownEl.innerHTML = '<div class="gr-empty">Aucun résultat</div>'; dropdownEl.classList.remove("hidden"); return; }
+    dropdownEl.innerHTML = items.map(function(it,idx){
+      return '<div class="gr-item" data-idx="'+idx+'"><span class="gr-main">'+escapeHtml(it.code)+'</span><span class="gr-sub">'+escapeHtml(it.right||"")+'</span></div>';
+    }).join("");
+    dropdownEl.classList.remove("hidden");
+    Array.prototype.forEach.call(dropdownEl.querySelectorAll(".gr-item"), function(el){
+      el.addEventListener("click", function(){ onPick(items[parseInt(el.getAttribute("data-idx"),10)]); hideAllDropdowns(); });
+    });
+  }
+
+  searchBinInput.addEventListener("input", function(){
+    var q = searchBinInput.value.trim().toUpperCase();
+    if (!q){ hideAllDropdowns(); return; }
+    var matches = state.binKeyList.filter(function(b){ return b.indexOf(q)!==-1; }).slice(0, MAX_SUGGESTIONS);
+    var items = matches.map(function(b){ var agg=state.binAgg.get(b); return { code:b, right: "HU: "+(agg?agg.count:0)+" · ART: "+(agg?agg.materials.size:0) }; });
+    renderDropdown(acBin, items, function(it){ searchBinInput.value=it.code; showBinDetails(it.code); });
+  });
+  searchArticleInput.addEventListener("input", function(){
+    var q = searchArticleInput.value.trim().toLowerCase();
+    if (!q){ hideAllDropdowns(); return; }
+    var matches = state.articleList.filter(function(a){ return a.code.toLowerCase().indexOf(q)!==-1 || (a.description && a.description.toLowerCase().indexOf(q)!==-1); }).slice(0, MAX_SUGGESTIONS);
+    var items = matches.map(function(a){ return { code:a.code, right:a.description||"" }; });
+    renderDropdown(acArticle, items, function(it){ searchArticleInput.value=it.code; showArticleDetails(it.code); });
+  });
+  searchRackInput.addEventListener("input", function(){
+    var q = searchRackInput.value.trim().toUpperCase();
+    if (!q){ hideAllDropdowns(); return; }
+    var matches = ALL_RACKS.filter(function(r){ return r.indexOf(q)!==-1; });
+    var items = matches.map(function(r){ return { code:r, right: MP_RACKS.indexOf(r)!==-1 ? "MP":"PF" }; });
+    renderDropdown(acRack, items, function(it){ searchRackInput.value=it.code; showRackFilter([it.code]); });
+  });
+  document.addEventListener("click", function(e){ if (!e.target.closest(".form-field")) hideAllDropdowns(); });
+
+  function runSearch(mode){
+    hideAllDropdowns();
+    if (mode==="bin"){
+      var binVal = searchBinInput.value.trim().toUpperCase(); if (!binVal) return;
+      searchArticleInput.value=""; searchRackInput.value="";
+      if (BIN_UNIVERSE.meta.has(binVal) || state.binAgg.has(binVal)){ showBinDetails(binVal); return; }
+      var binMatches = state.binKeyList.filter(function(b){ return b.indexOf(binVal)!==-1; });
+      if (binMatches.length===1) showBinDetails(binMatches[0]); else if (binMatches.length>1) showBinMultiResults(binVal, binMatches); else showBinDetails(binVal);
+    } else if (mode==="article"){
+      var artVal = searchArticleInput.value.trim(); if (!artVal) return;
+      searchBinInput.value=""; searchRackInput.value="";
+      if (state.materialAgg.has(artVal)){ showArticleDetails(artVal); return; }
+      var lower = artVal.toLowerCase();
+      var artMatches = state.articleList.filter(function(a){ return a.code.toLowerCase().indexOf(lower)!==-1 || (a.description && a.description.toLowerCase().indexOf(lower)!==-1); });
+      if (artMatches.length===1) showArticleDetails(artMatches[0].code); else if (artMatches.length>1) showArticleMultiResults(artVal, artMatches); else showArticleDetails(artVal);
+    } else if (mode==="rack"){
+      var rackVal = searchRackInput.value.trim().toUpperCase(); if (!rackVal) return;
+      searchBinInput.value=""; searchArticleInput.value="";
+      if (ALL_RACKS.indexOf(rackVal)!==-1){ showRackFilter([rackVal]); return; }
+      var rackMatches = ALL_RACKS.filter(function(r){ return r.indexOf(rackVal)!==-1; });
+      if (rackMatches.length) showRackFilter(rackMatches); else showRackFilter([rackVal]);
+    }
+  }
+  searchBinInput.addEventListener("keydown", function(e){ if (e.key==="Enter") runSearch("bin"); if (e.key==="Escape") hideAllDropdowns(); });
+  searchArticleInput.addEventListener("keydown", function(e){ if (e.key==="Enter") runSearch("article"); if (e.key==="Escape") hideAllDropdowns(); });
+  searchRackInput.addEventListener("keydown", function(e){ if (e.key==="Enter") runSearch("rack"); if (e.key==="Escape") hideAllDropdowns(); });
+  document.getElementById("btnClearSearch").addEventListener("click", function(){ clearSearchInputs(); switchInvTab(state.activeInvTab||"MP"); });
+
+  function showSearchView(){
+    ["MP","PF","OBD","OTHER"].forEach(function(t){ document.getElementById("view"+t).classList.add("hidden"); });
+    document.getElementById("tabsBar").classList.add("hidden");
+    document.getElementById("searchResultView").classList.remove("hidden");
+  }
+
+  function showBinMultiResults(query, matches){
+    var card = document.getElementById("searchResultCard");
+    var itemsHtml = matches.slice(0,100).map(function(b){ var agg=state.binAgg.get(b); return '<li data-bin="'+escapeHtml(b)+'"><span class="rl-main">'+escapeHtml(b)+'</span><span class="rl-sub">HU: '+(agg?agg.count:0)+' · ART: '+(agg?agg.materials.size:0)+'</span></li>'; }).join("");
+    card.innerHTML = '<div class="detail-title">RÉSULTATS BIN — "'+escapeHtml(query)+'"</div><div class="detail-sub">'+matches.length+' bin(s) correspondant(s).</div><ul class="result-list">'+itemsHtml+'</ul><div class="print-footer"></div>';
+    Array.prototype.forEach.call(card.querySelectorAll(".result-list li"), function(li){ li.addEventListener("click", function(){ showBinDetails(li.getAttribute("data-bin")); }); });
+    showSearchView(); stampPrintFooters();
+  }
+  function showArticleMultiResults(query, matches){
+    var card = document.getElementById("searchResultCard");
+    var itemsHtml = matches.slice(0,100).map(function(a){ return '<li data-code="'+escapeHtml(a.code)+'"><span class="rl-main">'+escapeHtml(a.code)+'</span><span class="rl-sub">'+escapeHtml(a.description||"")+'</span></li>'; }).join("");
+    card.innerHTML = '<div class="detail-title">RÉSULTATS ARTICLE — "'+escapeHtml(query)+'"</div><div class="detail-sub">'+matches.length+' article(s) correspondant(s).</div><ul class="result-list">'+itemsHtml+'</ul><div class="print-footer"></div>';
+    Array.prototype.forEach.call(card.querySelectorAll(".result-list li"), function(li){ li.addEventListener("click", function(){ showArticleDetails(li.getAttribute("data-code")); }); });
+    showSearchView(); stampPrintFooters();
+  }
+
+  function showBinDetails(binKey){
+    var meta = BIN_UNIVERSE.meta.get(binKey);
+    var card = document.getElementById("searchResultCard");
+    var entry = state.binAgg.get(binKey);
+    if (!meta && !entry){ card.innerHTML = '<div class="empty-state">Aucune donnée trouvée pour le bin "'+escapeHtml(binKey)+'"</div><div class="print-footer"></div>'; showSearchView(); stampPrintFooters(); return; }
+    if (!meta) meta = { rack:null, level:null, pos:null, section:"OTHER" };
+    var lines = state.binIndex.get(binKey) || [];
+    var hu = entry?entry.count:0, art = entry?entry.materials.size:0, qtySum = entry?entry.qtySum:0, batches = entry?entry.batches.size:0, masterHus = entry?entry.masterHus.size:0;
+    var kpiHtml = '<table class="kv-table"><tr><td class="k">Bin</td><td>'+escapeHtml(binKey)+'</td></tr><tr><td class="k">Nb Articles</td><td>'+art+'</td></tr>'+
+      '<tr><td class="k">Nb HU</td><td>'+hu+'</td></tr><tr><td class="k">Quantité Totale</td><td>'+formatNum(qtySum)+'</td></tr>'+
+      '<tr><td class="k">Nb Batchs</td><td>'+batches+'</td></tr><tr><td class="k">Nb Master HU</td><td>'+masterHus+'</td></tr></table>';
+    var tableHtml;
+    if (lines.length){
+      var rowsHtml = lines.map(function(l){ return '<tr><td>'+escapeHtml(l.material)+'</td><td>'+escapeHtml(l.hu)+'</td><td>'+escapeHtml(l.highestLevelHu)+'</td><td>'+escapeHtml(l.batch)+'</td><td>'+formatNum(l.quantity)+'</td></tr>'; }).join("");
+      tableHtml = '<table class="data-table"><thead><tr><th>Material</th><th>HU</th><th>Highest Level HU</th><th>Batch</th><th>Quantity</th></tr></thead><tbody>'+rowsHtml+'</tbody></table>';
+    } else { tableHtml = '<div class="empty-state">Bin vide — aucune ligne SAP sur cet emplacement</div>'; }
+    var subLine = meta.section==="OTHER" ? "Section AUTRES (hors structure MP/PF)" : "Rack "+escapeHtml(meta.rack)+" · Niveau "+meta.level+" · Position "+meta.pos+" · Section "+meta.section;
+    card.innerHTML = '<div class="detail-title">BIN DETAILS — '+escapeHtml(binKey)+'</div><div class="detail-sub">'+subLine+'</div>'+kpiHtml+tableHtml+'<div class="print-footer"></div>';
+    showSearchView(); stampPrintFooters();
+  }
+
+  function showArticleDetails(material){
+    var agg = state.materialAgg.get(material); var lines = state.materialIndex.get(material) || [];
+    var card = document.getElementById("searchResultCard");
+    if (!agg || !lines.length){ card.innerHTML = '<div class="empty-state">Aucune donnée trouvée pour l\'article "'+escapeHtml(material)+'"</div><div class="print-footer"></div>'; showSearchView(); stampPrintFooters(); return; }
+    var kpiHtml = '<table class="kv-table"><tr><td class="k">Article</td><td>'+escapeHtml(material)+(agg.description?(' — '+escapeHtml(agg.description)):'')+'</td></tr>'+
+      '<tr><td class="k">Total Bins</td><td>'+agg.bins.size+'</td></tr><tr><td class="k">Total HU</td><td>'+agg.count+'</td></tr>'+
+      '<tr><td class="k">Quantité Totale</td><td>'+formatNum(agg.qtySum)+'</td></tr><tr><td class="k">Total Batchs</td><td>'+agg.batches.size+'</td></tr>'+
+      '<tr><td class="k">Total Master HU</td><td>'+agg.masterHus.size+'</td></tr></table>';
+    var rowsHtml = lines.map(function(l){ return '<tr><td>'+escapeHtml(l.bin)+'</td><td>'+escapeHtml(l.hu)+'</td><td>'+escapeHtml(l.highestLevelHu)+'</td><td>'+escapeHtml(l.batch)+'</td><td>'+formatNum(l.quantity)+'</td></tr>'; }).join("");
+    card.innerHTML = '<div class="detail-title">ARTICLE DETAILS — '+escapeHtml(material)+'</div><div class="detail-sub">'+lines.length+' ligne(s) SAP trouvée(s)</div>'+kpiHtml+
+      '<table class="data-table"><thead><tr><th>Bin</th><th>HU</th><th>Highest Level HU</th><th>Batch</th><th>Quantity</th></tr></thead><tbody>'+rowsHtml+'</tbody></table><div class="print-footer"></div>';
+    showSearchView(); stampPrintFooters();
+  }
+
+  function showRackFilter(rackVals){
+    var validRacks = rackVals.filter(function(r){ return MP_RACKS.indexOf(r)!==-1 || PF_RACKS.indexOf(r)!==-1; });
+    var card = document.getElementById("searchResultCard");
+    if (!validRacks.length){ card.innerHTML = '<div class="empty-state">Rack "'+escapeHtml(rackVals.join(", "))+'" introuvable</div><div class="print-footer"></div>'; showSearchView(); stampPrintFooters(); return; }
+    var html = '<div class="detail-title">RACK'+(validRacks.length>1?"S":"")+' '+escapeHtml(validRacks.join(", "))+'</div><div class="detail-sub">Vue filtrée</div>'+
+      '<div class="legend"><span><i style="background:#16A34A;"></i> HU = 0</span><span><i style="background:#DBEAFE;"></i> HU 1–20</span>'+
+      '<span><i style="background:#F37021;"></i> HU 21–50</span><span><i style="background:#DC2626;"></i> HU &gt; 50</span></div>';
+    validRacks.forEach(function(rackVal){
+      var isMp = MP_RACKS.indexOf(rackVal)!==-1; var section = isMp?"MP":"PF"; var levels = isMp?MP_LEVELS:PF_LEVELS; var positions = isMp?MP_POSITIONS:PF_POSITIONS;
+      html += '<div class="rack-block" data-rack="'+escapeHtml(rackVal)+'"><div class="rack-title">RACK '+escapeHtml(rackVal)+' ('+section+')</div>';
+      levels.forEach(function(level){
+        html += '<div class="level-row"><div class="level-label">Niveau '+level+'</div><div class="level-cells">';
+        for (var p=1;p<=positions;p++) html += binCellHtml(rackVal+"-"+level+"-"+p);
+        html += '</div></div>';
+      });
+      html += '</div>';
+    });
+    html += '<div class="print-footer"></div>';
+    card.innerHTML = html; showSearchView(); stampPrintFooters();
+    Array.prototype.forEach.call(card.querySelectorAll(".bin-cell"), function(cell){
+      cell.addEventListener("click", function(){ searchBinInput.value = cell.getAttribute("data-bin"); showBinDetails(cell.getAttribute("data-bin")); });
+    });
+  }
+
+  /* ---- Export PDF / Print / Excel de l'inventaire ---- */
+  function enterPrintMode(pageId){
+    stampPrintFooters();
+    document.querySelectorAll(".page").forEach(function(p){ p.classList.remove("print-active"); });
+    document.getElementById(pageId).classList.add("print-active");
+    document.body.classList.add("print-mode");
+  }
+  function exitPrintMode(){ document.body.classList.remove("print-mode"); document.querySelectorAll(".page").forEach(function(p){ p.classList.remove("print-active"); }); }
+  window.addEventListener("afterprint", exitPrintMode);
+
+  document.getElementById("btnPrint").addEventListener("click", function(){ enterPrintMode("page-inventory"); window.print(); });
+  document.getElementById("btnPrintSearch").addEventListener("click", function(){ enterPrintMode("page-inventory"); window.print(); });
+
+  function exportPdf(elementId, filename){
+    stampPrintFooters();
+    document.body.classList.add("print-mode");
+    document.querySelectorAll(".page").forEach(function(p){ p.classList.remove("print-active"); });
+    document.getElementById("page-inventory").classList.add("print-active");
+    var el = document.getElementById(elementId);
+    var opt = { margin:5, filename:filename, image:{type:"jpeg",quality:0.98}, html2canvas:{scale:2}, jsPDF:{unit:"mm",format:"a4",orientation:"landscape"}, pagebreak:{mode:["css"]} };
+    html2pdf().set(opt).from(el).save().then(exitPrintMode);
+  }
+  document.getElementById("btnExportPdf").addEventListener("click", function(){
+    var section = state.activeInvTab;
+    var el = document.getElementById("searchResultView").classList.contains("hidden") ? "view"+section : "searchResultView";
+    exportPdf(el, "AZOUMAG_Inventory_" + section + ".pdf");
+  });
+  document.getElementById("btnExportSearchPdf").addEventListener("click", function(){ exportPdf("searchResultView", "AZOUMAG_Inventory_SearchResult.pdf"); });
+
+  document.getElementById("btnExportExcelInv").addEventListener("click", function(){
+    var rows = [["Bin","Rack","Niveau","Position","Section","HU","Nb Articles","Nb Batchs","Nb Master HU","Quantité Totale"]];
+    state.binAgg.forEach(function(agg, key){
+      rows.push([key, agg.rack||"", agg.level!=null?agg.level:"", agg.pos!=null?agg.pos:"", agg.section, agg.count, agg.materials.size, agg.batches.size, agg.masterHus.size, formatNum(agg.qtySum)]);
+    });
+    var ws = XLSX.utils.aoa_to_sheet(rows);
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Inventaire");
+    XLSX.writeFile(wb, "AZOUMAG_Inventaire_Complet.xlsx");
+  });
+
+  /* ======================================================================
+     RECHERCHE GLOBALE (topbar) — Material / Description / Batch / HU / Highest Level HU / Bin
+     ====================================================================== */
+  var globalSearchInput = document.getElementById("globalSearch");
+  var globalResults = document.getElementById("globalResults");
+
+  globalSearchInput.addEventListener("input", function(){
+    var q = globalSearchInput.value.trim();
+    if (!q || !state.hasData){ globalResults.classList.add("hidden"); return; }
+    var qLower = q.toLowerCase(), qUpper = q.toUpperCase();
+    var results = [];
+
+    state.binKeyList.forEach(function(b){ if (results.length<8 && b.indexOf(qUpper)!==-1) results.push({ tag:"BIN", code:b, sub:"", action:function(){ goToPage("inventory"); switchInvTab(BIN_UNIVERSE.meta.has(b)?(BIN_UNIVERSE.meta.get(b).section):"OTHER"); searchBinInput.value=b; showBinDetails(b); } }); });
+    state.articleList.forEach(function(a){ if (results.length<16 && (a.code.toLowerCase().indexOf(qLower)!==-1 || (a.description&&a.description.toLowerCase().indexOf(qLower)!==-1))) results.push({ tag:"ARTICLE", code:a.code, sub:a.description||"", action:function(){ goToPage("inventory"); searchArticleInput.value=a.code; showArticleDetails(a.code); } }); });
+
+    var seenBatch = new Set(), seenHu = new Set();
+    state.allLines.forEach(function(l){
+      if (results.length>=24) return;
+      if (l.batch && !seenBatch.has(l.batch) && l.batch.toLowerCase().indexOf(qLower)!==-1){
+        seenBatch.add(l.batch);
+        results.push({ tag:"BATCH", code:l.batch, sub:"Bin "+l.bin, action:function(){ goToPage("batch"); } });
+      }
+      if (l.hu && !seenHu.has(l.hu) && l.hu.toLowerCase().indexOf(qLower)!==-1){
+        seenHu.add(l.hu);
+        results.push({ tag:"HU", code:l.hu, sub:"Bin "+l.bin+" · "+l.material, action:function(){ goToPage("hu"); } });
+      }
+    });
+
+    if (!results.length){ globalResults.innerHTML = '<div class="gr-empty">Aucun résultat</div>'; globalResults.classList.remove("hidden"); return; }
+    globalResults.innerHTML = results.slice(0,24).map(function(r,idx){
+      return '<div class="gr-item" data-idx="'+idx+'"><span class="gr-tag">'+escapeHtml(r.tag)+'</span><span class="gr-main">'+escapeHtml(r.code)+'</span><span class="gr-sub">'+escapeHtml(r.sub)+'</span></div>';
+    }).join("");
+    globalResults.classList.remove("hidden");
+    Array.prototype.forEach.call(globalResults.querySelectorAll(".gr-item"), function(el, idx){
+      el.addEventListener("click", function(){ results[idx].action(); globalResults.classList.add("hidden"); globalSearchInput.value=""; });
+    });
+  });
+  document.addEventListener("click", function(e){ if (!e.target.closest(".global-search-wrap")) globalResults.classList.add("hidden"); });
+
+  /* ======================================================================
+     MODULE CODES-BARRES (unitaire + masse) — Code128 / Code39 / EAN13 / QR
+     ====================================================================== */
+  function makeBarcodeLabel(value, type){
+    var wrap = document.createElement("div");
+    wrap.className = "barcode-label";
+    if (type === "QR"){
+      if (typeof QRCode === "undefined"){
+        wrap.innerHTML = '<div style="color:#DC2626; font-size:11px; padding:10px;">Bibliothèque QR Code indisponible (connexion internet requise)</div>';
+      } else {
+        var qrDiv = document.createElement("div");
+        wrap.appendChild(qrDiv);
+        try { new QRCode(qrDiv, { text: value, width: 110, height: 110 }); }
+        catch(e){ wrap.innerHTML = '<div style="color:#DC2626; font-size:11px; padding:10px;">Erreur génération QR</div>'; }
+      }
+    } else if (typeof JsBarcode === "undefined"){
+      wrap.innerHTML = '<div style="color:#DC2626; font-size:11px; padding:10px;">Bibliothèque code-barres indisponible (connexion internet requise)</div>';
+    } else {
+      var canvas = document.createElement("canvas");
+      wrap.appendChild(canvas);
+      try {
+        JsBarcode(canvas, value, { format: type, displayValue: false, width: 2, height: 60, margin: 4 });
+      } catch (e){
+        wrap.innerHTML = '<div style="color:#DC2626; font-size:11px; padding:10px;">Valeur invalide pour ' + escapeHtml(type) + '</div>';
+      }
+    }
+    var label = document.createElement("div");
+    label.className = "bl-code";
+    label.textContent = value;
+    wrap.appendChild(label);
+    return wrap;
+  }
+
+  function canvasFromLabel(labelEl){
+    // Récupère le canvas (Code128/39/EAN13) ou convertit le QR (img/canvas généré par qrcodejs) en canvas unique.
+    var existing = labelEl.querySelector("canvas");
+    if (existing) return existing;
+    var img = labelEl.querySelector("img");
+    if (img){
+      var c = document.createElement("canvas");
+      c.width = img.width || 110; c.height = img.height || 110;
+      var ctx = c.getContext("2d");
+      ctx.drawImage(img, 0, 0);
+      return c;
+    }
+    return null;
+  }
+
+  // --- Génération unitaire ---
+  document.getElementById("btnGenUnit").addEventListener("click", function(){
+    var value = document.getElementById("bcUnitValue").value.trim();
+    var type = document.getElementById("bcUnitType").value;
+    var out = document.getElementById("unitBarcodeOutput");
+    out.innerHTML = "";
+    if (!value){ out.innerHTML = '<div class="empty-state">Saisissez une valeur.</div>'; return; }
+    out.appendChild(makeBarcodeLabel(value, type));
+  });
+
+  document.getElementById("btnDownloadUnitPng").addEventListener("click", function(){
+    var label = document.querySelector("#unitBarcodeOutput .barcode-label");
+    if (!label){ alert("Générez d'abord un code-barres."); return; }
+    setTimeout(function(){
+      var canvas = canvasFromLabel(label);
+      if (!canvas){ alert("Impossible d'extraire l'image."); return; }
+      canvas.toBlob(function(blob){ downloadBlob(blob, "AZOUMAG_Barcode.png"); });
+    }, 150); // laisse le temps au QR de se rendre en DOM
+  });
+
+  document.getElementById("btnDownloadUnitPdf").addEventListener("click", function(){
+    var el = document.getElementById("unitBarcodeOutput");
+    if (!el.querySelector(".barcode-label")){ alert("Générez d'abord un code-barres."); return; }
+    html2pdf().set({ margin:10, filename:"AZOUMAG_Barcode.pdf", image:{type:"jpeg",quality:0.98}, html2canvas:{scale:2}, jsPDF:{unit:"mm",format:"a4",orientation:"portrait"} }).from(el).save();
+  });
+
+  // --- Génération en masse ---
+  document.getElementById("btnGenBulk").addEventListener("click", function(){
+    var raw = document.getElementById("bcBulkValues").value;
+    var type = document.getElementById("bcBulkType").value;
+    var values = raw.split("\n").map(function(v){ return v.trim(); }).filter(function(v){ return v !== ""; });
+    var out = document.getElementById("bulkBarcodeOutput");
+    out.innerHTML = "";
+    if (!values.length){ out.innerHTML = '<div class="empty-state">Ajoutez au moins une valeur (une par ligne).</div>'; return; }
+    values.forEach(function(v){ out.appendChild(makeBarcodeLabel(v, type)); });
+  });
+
+  document.getElementById("btnExportZip").addEventListener("click", function(){
+    var labels = document.querySelectorAll("#bulkBarcodeOutput .barcode-label");
+    if (!labels.length){ alert("Générez d'abord les codes-barres."); return; }
+    setTimeout(function(){
+      var zip = new JSZip();
+      var count = 0, total = labels.length;
+      Array.prototype.forEach.call(labels, function(label){
+        var canvas = canvasFromLabel(label);
+        var code = label.querySelector(".bl-code").textContent;
+        if (!canvas){ count++; return; }
+        canvas.toBlob(function(blob){
+          zip.file("AZOUMAG_" + code.replace(/[^A-Z0-9\-\._]/gi,"_") + ".png", blob);
+          count++;
+          if (count === total){ zip.generateAsync({type:"blob"}).then(function(content){ downloadBlob(content, "AZOUMAG_Barcodes.zip"); }); }
+        });
+      });
+    }, 200);
+  });
+
+  document.getElementById("btnExportBulkPdf").addEventListener("click", function(){
+    var el = document.getElementById("bulkBarcodeOutput");
+    if (!el.querySelector(".barcode-label")){ alert("Générez d'abord les codes-barres."); return; }
+    html2pdf().set({ margin:8, filename:"AZOUMAG_Barcodes.pdf", image:{type:"jpeg",quality:0.98}, html2canvas:{scale:2}, jsPDF:{unit:"mm",format:"a4",orientation:"landscape"} }).from(el).save();
+  });
+
+  /* ======================================================================
+     MODULE GESTION DES BINS (créateur générique + export Excel)
+     ====================================================================== */
+  var generatedBinList = [];
+
+  document.getElementById("btnGenerateBins").addEventListener("click", function(){
+    var racks = document.getElementById("binGenRacks").value.split(",").map(function(r){ return r.trim().toUpperCase(); }).filter(function(r){ return r!==""; });
+    var lMin = parseInt(document.getElementById("binGenLevelMin").value, 10);
+    var lMax = parseInt(document.getElementById("binGenLevelMax").value, 10);
+    var pMin = parseInt(document.getElementById("binGenPosMin").value, 10);
+    var pMax = parseInt(document.getElementById("binGenPosMax").value, 10);
+    if (!racks.length || isNaN(lMin) || isNaN(lMax) || isNaN(pMin) || isNaN(pMax) || lMin>lMax || pMin>pMax){
+      alert("Vérifiez les paramètres (racks, niveaux, positions)."); return;
+    }
+    generatedBinList = [];
+    racks.forEach(function(rack){
+      for (var level=lMin; level<=lMax; level++){
+        for (var pos=pMin; pos<=pMax; pos++){
+          generatedBinList.push({ bin: rack+"-"+level+"-"+pos, rack:rack, level:level, pos:pos });
+        }
+      }
+    });
+    renderBinGenTable();
+  });
+
+  function renderBinGenTable(){
+    var tbody = document.getElementById("binGenTableBody");
+    document.getElementById("binGenCount").textContent = generatedBinList.length + " bin(s) générés.";
+    if (!generatedBinList.length){ tbody.innerHTML = '<tr><td colspan="4" class="empty-state">Aucune liste générée.</td></tr>'; return; }
+    var maxShow = 500;
+    tbody.innerHTML = generatedBinList.slice(0, maxShow).map(function(b){
+      return '<tr><td>'+escapeHtml(b.bin)+'</td><td>'+escapeHtml(b.rack)+'</td><td>'+b.level+'</td><td>'+b.pos+'</td></tr>';
+    }).join("");
+    if (generatedBinList.length > maxShow){
+      tbody.innerHTML += '<tr><td colspan="4" class="empty-state">... et ' + (generatedBinList.length-maxShow) + ' autres (export Excel pour la liste complète)</td></tr>';
+    }
+  }
+
+  document.getElementById("btnExportBinsExcel").addEventListener("click", function(){
+    if (!generatedBinList.length){ alert("Générez d'abord une liste de bins."); return; }
+    var rows = [["Bin","Rack","Niveau","Position"]].concat(generatedBinList.map(function(b){ return [b.bin,b.rack,b.level,b.pos]; }));
+    var ws = XLSX.utils.aoa_to_sheet(rows);
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Bins");
+    XLSX.writeFile(wb, "AZOUMAG_Liste_Bins.xlsx");
+  });
+
+  /* ======================================================================
+     MODULE ANALYSE HU
+     ====================================================================== */
+  function computeHuAnalysis(){
+    var orphan = [], noBatch = [], noBin = [];
+    var huToBins = new Map(); // hu -> { bins:Set, materials:Set }
+
+    state.allLines.forEach(function(l){
+      if (!l.hu) return;
+      if (!l.highestLevelHu) orphan.push(l);
+      if (!l.batch) noBatch.push(l);
+      if (!huToBins.has(l.hu)) huToBins.set(l.hu, { bins:new Set(), materials:new Set() });
+      var e = huToBins.get(l.hu);
+      e.bins.add(l.bin); e.materials.add(l.material);
+    });
+    state.linesWithoutBin.forEach(function(l){ if (l.hu) noBin.push(l); });
+
+    var duplicated = [];
+    huToBins.forEach(function(e, hu){ if (e.bins.size > 1) duplicated.push({ hu:hu, bins:Array.from(e.bins), materials:Array.from(e.materials) }); });
+    duplicated.sort(function(a,b){ return b.bins.length - a.bins.length; });
+
+    return { orphan:orphan, noBatch:noBatch, noBin:noBin, duplicated:duplicated, totalHuDistinct: huToBins.size };
+  }
+
+  function renderHuAnalysis(){
+    if (!state.hasData){ document.getElementById("huEmpty").classList.remove("hidden"); document.getElementById("huContent").classList.add("hidden"); return; }
+    document.getElementById("huEmpty").classList.add("hidden");
+    document.getElementById("huContent").classList.remove("hidden");
+    var a = computeHuAnalysis();
+    window._huAnalysisCache = a;
+
+    var kpis = [
+      { label:"HU Distinctes", value:a.totalHuDistinct },
+      { label:"HU Orphelines", value:a.orphan.length, cls: a.orphan.length?"alert":"good" },
+      { label:"HU Sans Batch", value:a.noBatch.length, cls: a.noBatch.length?"alert":"good" },
+      { label:"HU Sans Emplacement", value:a.noBin.length, cls: a.noBin.length?"alert":"good" },
+      { label:"HU Dupliquées", value:a.duplicated.length, cls: a.duplicated.length?"alert":"good" }
+    ];
+    document.getElementById("huKpiGrid").innerHTML = kpis.map(function(k){ return '<div class="kpi-card '+(k.cls||"")+'"><div class="kv">'+k.value+'</div><div class="kl">'+escapeHtml(k.label)+'</div></div>'; }).join("");
+
+    document.querySelector("#huOrphanTable tbody").innerHTML = a.orphan.length ? a.orphan.slice(0,300).map(function(l){
+      return '<tr><td>'+escapeHtml(l.bin)+'</td><td>'+escapeHtml(l.material)+'</td><td>'+escapeHtml(l.hu)+'</td><td>'+escapeHtml(l.batch)+'</td><td>'+formatNum(l.quantity)+'</td></tr>';
+    }).join("") : '<tr><td colspan="5" class="empty-state">Aucune HU orpheline</td></tr>';
+
+    document.querySelector("#huNoBatchTable tbody").innerHTML = a.noBatch.length ? a.noBatch.slice(0,300).map(function(l){
+      return '<tr><td>'+escapeHtml(l.bin)+'</td><td>'+escapeHtml(l.material)+'</td><td>'+escapeHtml(l.hu)+'</td><td>'+escapeHtml(l.highestLevelHu)+'</td><td>'+formatNum(l.quantity)+'</td></tr>';
+    }).join("") : '<tr><td colspan="5" class="empty-state">Aucune HU sans batch</td></tr>';
+
+    document.querySelector("#huNoBinTable tbody").innerHTML = a.noBin.length ? a.noBin.slice(0,300).map(function(l){
+      return '<tr><td>'+escapeHtml(l.material)+'</td><td>'+escapeHtml(l.hu)+'</td><td>'+escapeHtml(l.highestLevelHu)+'</td><td>'+escapeHtml(l.batch)+'</td><td>'+formatNum(l.quantity)+'</td></tr>';
+    }).join("") : '<tr><td colspan="5" class="empty-state">Aucune HU sans emplacement</td></tr>';
+
+    document.querySelector("#huDupTable tbody").innerHTML = a.duplicated.length ? a.duplicated.slice(0,300).map(function(d){
+      return '<tr><td>'+escapeHtml(d.hu)+'</td><td>'+d.bins.length+'</td><td>'+escapeHtml(d.bins.join(", "))+'</td><td>'+escapeHtml(d.materials.join(", "))+'</td></tr>';
+    }).join("") : '<tr><td colspan="4" class="empty-state">Aucune HU dupliquée</td></tr>';
+  }
+
+  document.getElementById("btnExportHuExcel").addEventListener("click", function(){
+    var a = window._huAnalysisCache || computeHuAnalysis();
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Bin","Material","HU","Batch","Quantity"]].concat(a.orphan.map(function(l){return [l.bin,l.material,l.hu,l.batch,l.quantity];}))), "HU Orphelines");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Bin","Material","HU","Highest Level HU","Quantity"]].concat(a.noBatch.map(function(l){return [l.bin,l.material,l.hu,l.highestLevelHu,l.quantity];}))), "HU Sans Batch");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Material","HU","Highest Level HU","Batch","Quantity"]].concat(a.noBin.map(function(l){return [l.material,l.hu,l.highestLevelHu,l.batch,l.quantity];}))), "HU Sans Emplacement");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["HU","Nb Bins","Bins","Materials"]].concat(a.duplicated.map(function(d){return [d.hu,d.bins.length,d.bins.join(", "),d.materials.join(", ")];}))), "HU Dupliquées");
+    XLSX.writeFile(wb, "AZOUMAG_Analyse_HU.xlsx");
+  });
+
+  /* ======================================================================
+     MODULE ANALYSE BATCHS
+     ====================================================================== */
+  var batchOverviewPage = 1, batchOverviewPageSize = 25, batchOverviewFilter = "";
+
+  function computeBatchAnalysis(){
+    var batchToBins = new Map(); // batch -> { bins:Set, materials:Set, qty:number }
+    var noHu = [];
+    state.allLines.forEach(function(l){
+      if (!l.batch) return;
+      if (!batchToBins.has(l.batch)) batchToBins.set(l.batch, { bins:new Set(), materials:new Set(), qty:0 });
+      var e = batchToBins.get(l.batch);
+      e.bins.add(l.bin); e.materials.add(l.material); e.qty += l.quantity;
+      if (!l.hu) noHu.push(l);
+    });
+    var overview = Array.from(batchToBins.entries()).map(function(entry){ return { batch:entry[0], qty:entry[1].qty, bins:Array.from(entry[1].bins), materials:Array.from(entry[1].materials) }; });
+    overview.sort(function(a,b){ return a.batch.localeCompare(b.batch); });
+    var dispersed = overview.filter(function(o){ return o.bins.length > 1; }).sort(function(a,b){ return b.bins.length-a.bins.length; });
+    var duplicated = overview.filter(function(o){ return o.materials.length > 1; }).sort(function(a,b){ return b.materials.length-a.materials.length; });
+    return { overview:overview, dispersed:dispersed, duplicated:duplicated, noHu:noHu };
+  }
+
+  function renderBatchAnalysis(){
+    if (!state.hasData){ document.getElementById("batchEmpty").classList.remove("hidden"); document.getElementById("batchContent").classList.add("hidden"); return; }
+    document.getElementById("batchEmpty").classList.add("hidden");
+    document.getElementById("batchContent").classList.remove("hidden");
+    var a = computeBatchAnalysis();
+    window._batchAnalysisCache = a;
+
+    var kpis = [
+      { label:"Batchs Distincts", value:a.overview.length },
+      { label:"Batchs Dispersés", value:a.dispersed.length, cls:a.dispersed.length?"alert":"good" },
+      { label:"Batchs Dupliqués", value:a.duplicated.length, cls:a.duplicated.length?"alert":"good" },
+      { label:"Batchs Sans HU", value:a.noHu.length, cls:a.noHu.length?"alert":"good" }
+    ];
+    document.getElementById("batchKpiGrid").innerHTML = kpis.map(function(k){ return '<div class="kpi-card '+(k.cls||"")+'"><div class="kv">'+k.value+'</div><div class="kl">'+escapeHtml(k.label)+'</div></div>'; }).join("");
+
+    document.querySelector("#batchDispersedTable tbody").innerHTML = a.dispersed.length ? a.dispersed.slice(0,300).map(function(d){
+      return '<tr><td>'+escapeHtml(d.batch)+'</td><td>'+d.bins.length+'</td><td>'+escapeHtml(d.bins.join(", "))+'</td></tr>';
+    }).join("") : '<tr><td colspan="3" class="empty-state">Aucun batch dispersé</td></tr>';
+
+    document.querySelector("#batchDupTable tbody").innerHTML = a.duplicated.length ? a.duplicated.slice(0,300).map(function(d){
+      return '<tr><td>'+escapeHtml(d.batch)+'</td><td>'+d.materials.length+'</td><td>'+escapeHtml(d.materials.join(", "))+'</td></tr>';
+    }).join("") : '<tr><td colspan="3" class="empty-state">Aucun batch dupliqué</td></tr>';
+
+    document.querySelector("#batchNoHuTable tbody").innerHTML = a.noHu.length ? a.noHu.slice(0,300).map(function(l){
+      return '<tr><td>'+escapeHtml(l.bin)+'</td><td>'+escapeHtml(l.material)+'</td><td>'+escapeHtml(l.batch)+'</td><td>'+formatNum(l.quantity)+'</td></tr>';
+    }).join("") : '<tr><td colspan="4" class="empty-state">Aucun batch sans HU</td></tr>';
+
+    batchOverviewPage = 1;
+    renderBatchOverviewTable();
+  }
+
+  function renderBatchOverviewTable(){
+    var a = window._batchAnalysisCache; if (!a) return;
+    var filtered = batchOverviewFilter ? a.overview.filter(function(o){ return o.batch.toLowerCase().indexOf(batchOverviewFilter.toLowerCase())!==-1; }) : a.overview;
+    var totalPages = Math.max(1, Math.ceil(filtered.length / batchOverviewPageSize));
+    if (batchOverviewPage > totalPages) batchOverviewPage = totalPages;
+    var start = (batchOverviewPage-1) * batchOverviewPageSize;
+    var pageItems = filtered.slice(start, start + batchOverviewPageSize);
+
+    document.querySelector("#batchOverviewTable tbody").innerHTML = pageItems.length ? pageItems.map(function(o){
+      return '<tr><td>'+escapeHtml(o.batch)+'</td><td>'+formatNum(o.qty)+'</td><td>'+o.bins.length+'</td></tr>';
+    }).join("") : '<tr><td colspan="3" class="empty-state">Aucun résultat</td></tr>';
+
+    document.getElementById("batchPagination").innerHTML =
+      '<button id="batchPrevPage" '+(batchOverviewPage<=1?"disabled":"")+'>&laquo; Précédent</button>' +
+      '<span>Page ' + batchOverviewPage + ' / ' + totalPages + ' (' + filtered.length + ' batchs)</span>' +
+      '<button id="batchNextPage" '+(batchOverviewPage>=totalPages?"disabled":"")+'>Suivant &raquo;</button>';
+    var prevBtn = document.getElementById("batchPrevPage"), nextBtn = document.getElementById("batchNextPage");
+    if (prevBtn) prevBtn.addEventListener("click", function(){ batchOverviewPage--; renderBatchOverviewTable(); });
+    if (nextBtn) nextBtn.addEventListener("click", function(){ batchOverviewPage++; renderBatchOverviewTable(); });
+  }
+
+  document.getElementById("batchTableSearch").addEventListener("input", function(e){ batchOverviewFilter = e.target.value; batchOverviewPage = 1; renderBatchOverviewTable(); });
+
+  document.getElementById("btnExportBatchExcel").addEventListener("click", function(){
+    var a = window._batchAnalysisCache || computeBatchAnalysis();
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Batch","Quantité","Nb Bins"]].concat(a.overview.map(function(o){return [o.batch,o.qty,o.bins.length];}))), "Vue d'ensemble");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Batch","Nb Bins","Bins"]].concat(a.dispersed.map(function(o){return [o.batch,o.bins.length,o.bins.join(", ")];}))), "Dispersés");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Batch","Nb Materials","Materials"]].concat(a.duplicated.map(function(o){return [o.batch,o.materials.length,o.materials.join(", ")];}))), "Dupliqués");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Bin","Material","Batch","Quantity"]].concat(a.noHu.map(function(l){return [l.bin,l.material,l.batch,l.quantity];}))), "Sans HU");
+    XLSX.writeFile(wb, "AZOUMAG_Analyse_Batchs.xlsx");
+  });
+
+  /* ======================================================================
+     MODULE ÉCARTS D'INVENTAIRE (SAP vs comptage physique)
+     ====================================================================== */
+  var GAP_STORAGE_KEY = "azoumag_gap_counts";
+  var gapPage = 1, gapPageSize = 30, gapFilterBinVal = "", gapFilterModeVal = "all";
+
+  function gapStorageKeyForFile(){ return GAP_STORAGE_KEY + "_" + (state.fileSignature || state.fileName || "default"); }
+
+  function loadGapCounts(){
+    state.gapCounts = {};
+    try {
+      var raw = localStorage.getItem(gapStorageKeyForFile());
+      if (raw) state.gapCounts = JSON.parse(raw);
+    } catch(e){}
+  }
+  function persistGapCounts(){
+    try { localStorage.setItem(gapStorageKeyForFile(), JSON.stringify(state.gapCounts)); } catch(e){}
+  }
+
+  function computeGapStats(){
+    var positive=0, negative=0, zero=0, countedTotal=0;
+    Object.keys(state.gapCounts).forEach(function(bin){
+      var counted = state.gapCounts[bin];
+      if (counted === "" || counted === null || counted === undefined) return;
+      var entry = state.binAgg.get(bin);
+      var sap = entry ? entry.count : 0;
+      var ecart = Number(counted) - sap;
+      countedTotal++;
+      if (ecart > 0) positive++; else if (ecart < 0) negative++; else zero++;
+    });
+    return { positive:positive, negative:negative, zero:zero, countedTotal:countedTotal, nonZero: positive+negative };
+  }
+
+  function renderGapTable(){
+    if (!state.hasData){ document.getElementById("gapEmpty").classList.remove("hidden"); document.getElementById("gapContent").classList.add("hidden"); return; }
+    document.getElementById("gapEmpty").classList.add("hidden");
+    document.getElementById("gapContent").classList.remove("hidden");
+
+    var stats = computeGapStats();
+    var kpis = [
+      { label:"Bins Comptés", value: stats.countedTotal },
+      { label:"Écarts Positifs", value: stats.positive, cls: stats.positive?"alert":"good" },
+      { label:"Écarts Négatifs", value: stats.negative, cls: stats.negative?"alert":"good" },
+      { label:"Écarts Nuls (Conformes)", value: stats.zero, cls:"good" }
+    ];
+    document.getElementById("gapKpiGrid").innerHTML = kpis.map(function(k){ return '<div class="kpi-card '+(k.cls||"")+'"><div class="kv">'+k.value+'</div><div class="kl">'+escapeHtml(k.label)+'</div></div>'; }).join("");
+
+    // Liste des bins occupés (MP+PF+Autres)
+    var allBins = [];
+    state.binAgg.forEach(function(entry, key){ if (entry.count > 0) allBins.push(key); });
+    allBins.sort();
+
+    if (gapFilterBinVal) allBins = allBins.filter(function(b){ return b.indexOf(gapFilterBinVal.toUpperCase()) !== -1; });
+    if (gapFilterModeVal === "counted") allBins = allBins.filter(function(b){ return state.gapCounts[b] !== undefined && state.gapCounts[b] !== ""; });
+    else if (gapFilterModeVal !== "all"){
+      allBins = allBins.filter(function(b){
+        var counted = state.gapCounts[b];
+        if (counted === undefined || counted === "") return false;
+        var sap = state.binAgg.get(b).count;
+        var ecart = Number(counted) - sap;
+        if (gapFilterModeVal === "positive") return ecart > 0;
+        if (gapFilterModeVal === "negative") return ecart < 0;
+        if (gapFilterModeVal === "zero") return ecart === 0;
+        return true;
+      });
+    }
+
+    var totalPages = Math.max(1, Math.ceil(allBins.length / gapPageSize));
+    if (gapPage > totalPages) gapPage = totalPages;
+    var start = (gapPage-1)*gapPageSize;
+    var pageBins = allBins.slice(start, start+gapPageSize);
+
+    var tbody = document.getElementById("gapTableBody");
+    tbody.innerHTML = pageBins.length ? pageBins.map(function(b){
+      var sap = state.binAgg.get(b).count;
+      var counted = state.gapCounts[b] !== undefined ? state.gapCounts[b] : "";
+      var hasCounted = counted !== "" && counted !== undefined && counted !== null;
+      var ecart = hasCounted ? (Number(counted) - sap) : "";
+      var badge = !hasCounted ? '<span class="badge badge-navy">Non compté</span>' :
+        (ecart===0 ? '<span class="badge badge-ok">Conforme</span>' : (ecart>0 ? '<span class="badge badge-warn">Excédent</span>' : '<span class="badge badge-danger">Manquant</span>'));
+      return '<tr><td>'+escapeHtml(b)+'</td><td>'+sap+'</td><td><input type="number" class="gap-input" data-bin="'+escapeHtml(b)+'" value="'+counted+'" placeholder="—"></td><td>'+(hasCounted?ecart:"—")+'</td><td>'+badge+'</td></tr>';
+    }).join("") : '<tr><td colspan="5" class="empty-state">Aucun bin ne correspond aux filtres</td></tr>';
+
+    Array.prototype.forEach.call(tbody.querySelectorAll(".gap-input"), function(inp){
+      inp.addEventListener("change", function(){
+        var bin = inp.getAttribute("data-bin");
+        state.gapCounts[bin] = inp.value === "" ? "" : Number(inp.value);
+        renderGapTable();
+      });
+    });
+
+    document.getElementById("gapPagination").innerHTML =
+      '<button id="gapPrevPage" '+(gapPage<=1?"disabled":"")+'>&laquo; Précédent</button>' +
+      '<span>Page ' + gapPage + ' / ' + totalPages + ' (' + allBins.length + ' bins)</span>' +
+      '<button id="gapNextPage" '+(gapPage>=totalPages?"disabled":"")+'>Suivant &raquo;</button>';
+    var prevBtn = document.getElementById("gapPrevPage"), nextBtn = document.getElementById("gapNextPage");
+    if (prevBtn) prevBtn.addEventListener("click", function(){ gapPage--; renderGapTable(); });
+    if (nextBtn) nextBtn.addEventListener("click", function(){ gapPage++; renderGapTable(); });
+  }
+
+  document.getElementById("btnApplyGapFilter").addEventListener("click", function(){
+    gapFilterBinVal = document.getElementById("gapFilterBin").value.trim();
+    gapFilterModeVal = document.getElementById("gapFilterMode").value;
+    gapPage = 1;
+    renderGapTable();
+  });
+
+  document.getElementById("btnSaveGap").addEventListener("click", function(){
+    persistGapCounts();
+    alert("Comptages sauvegardés localement pour ce fichier.");
+  });
+
+  document.getElementById("btnExportGapExcel").addEventListener("click", function(){
+    var rows = [["Bin","SAP (HU)","Compté","Écart","Statut"]];
+    var allBins = []; state.binAgg.forEach(function(entry,key){ if (entry.count>0) allBins.push(key); }); allBins.sort();
+    allBins.forEach(function(b){
+      var sap = state.binAgg.get(b).count;
+      var counted = state.gapCounts[b];
+      var hasCounted = counted !== undefined && counted !== "" && counted !== null;
+      var ecart = hasCounted ? (Number(counted)-sap) : "";
+      var statut = !hasCounted ? "Non compté" : (ecart===0?"Conforme":(ecart>0?"Excédent":"Manquant"));
+      rows.push([b, sap, hasCounted?counted:"", hasCounted?ecart:"", statut]);
+    });
+    var ws = XLSX.utils.aoa_to_sheet(rows);
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Écarts");
+    XLSX.writeFile(wb, "AZOUMAG_Ecarts_Inventaire.xlsx");
+  });
+
+  /* ======================================================================
+     MODULE RAPPORT AUTOMATIQUE
+     ====================================================================== */
+  function renderReportPage(){
+    if (!state.hasData){ document.getElementById("reportEmpty").classList.remove("hidden"); document.getElementById("reportContent").classList.add("hidden"); return; }
+    document.getElementById("reportEmpty").classList.add("hidden");
+    document.getElementById("reportContent").classList.remove("hidden");
+  }
+
+  document.getElementById("btnGenerateReport").addEventListener("click", function(){
+    if (!state.hasData) return;
+    var huA = computeHuAnalysis();
+    var batchA = computeBatchAnalysis();
+    var gapStats = computeGapStats();
+    var totalQty = 0; state.binAgg.forEach(function(e){ totalQty += e.qtySum; });
+    var binsOccupes = 0; state.binAgg.forEach(function(e){ if (e.count>0) binsOccupes++; });
+
+    var recommendations = [];
+    if (huA.orphan.length) recommendations.push("Vérifier les " + huA.orphan.length + " HU orphelines (sans Highest Level HU) — risque de rattachement incorrect.");
+    if (huA.duplicated.length) recommendations.push(huA.duplicated.length + " HU apparaissent sur plusieurs bins : contrôler la localisation physique réelle.");
+    if (batchA.dispersed.length) recommendations.push(batchA.dispersed.length + " batchs sont dispersés sur plusieurs emplacements : envisager un regroupement.");
+    if (gapStats.nonZero > 0) recommendations.push(gapStats.nonZero + " écarts détectés lors du comptage physique : prioriser leur régularisation dans SAP.");
+    if (!recommendations.length) recommendations.push("Aucune anomalie majeure détectée sur les critères analysés.");
+
+    var html = '<div class="detail-title">RAPPORT DE SYNTHÈSE — AZOUMAG INVENTORY SUITE</div>' +
+      '<div class="detail-sub">Généré le ' + nowStamp() + (state.fileName ? (' — Fichier source : ' + escapeHtml(state.fileName)) : '') + '</div>' +
+      '<h3 style="font-size:13px; color:#1D2240; margin:16px 0 8px;">Résumé</h3>' +
+      '<table class="kv-table">' +
+        '<tr><td class="k">Nombre d\'Articles</td><td>' + state.materialAgg.size + '</td></tr>' +
+        '<tr><td class="k">Quantité Totale</td><td>' + formatNum(totalQty) + '</td></tr>' +
+        '<tr><td class="k">Nombre de Bins Occupés</td><td>' + binsOccupes + '</td></tr>' +
+      '</table>' +
+      '<h3 style="font-size:13px; color:#1D2240; margin:16px 0 8px;">Analyse</h3>' +
+      '<table class="kv-table">' +
+        '<tr><td class="k">Écarts (positifs/négatifs)</td><td>' + gapStats.positive + ' / ' + gapStats.negative + '</td></tr>' +
+        '<tr><td class="k">HU Orphelines</td><td>' + huA.orphan.length + '</td></tr>' +
+        '<tr><td class="k">HU Dupliquées</td><td>' + huA.duplicated.length + '</td></tr>' +
+        '<tr><td class="k">Batchs Dispersés</td><td>' + batchA.dispersed.length + '</td></tr>' +
+        '<tr><td class="k">Batchs Dupliqués</td><td>' + batchA.duplicated.length + '</td></tr>' +
+      '</table>' +
+      '<h3 style="font-size:13px; color:#1D2240; margin:16px 0 8px;">Recommandations</h3>' +
+      '<ul style="padding-left:20px; font-size:13px; line-height:1.9;">' + recommendations.map(function(r){ return '<li>' + escapeHtml(r) + '</li>'; }).join("") + '</ul>';
+
+    document.getElementById("reportBody").innerHTML = html;
+    saveReportToHistory({ articles: state.materialAgg.size, bins: binsOccupes, gaps: gapStats.nonZero });
+  });
+
+  document.getElementById("btnExportReportPdf").addEventListener("click", function(){
+    if (document.getElementById("reportBody").querySelector(".empty-state")){ alert("Générez d'abord le rapport."); return; }
+    stampPrintFooters();
+    document.body.classList.add("print-mode");
+    document.querySelectorAll(".page").forEach(function(p){ p.classList.remove("print-active"); });
+    document.getElementById("page-report").classList.add("print-active");
+    html2pdf().set({ margin:8, filename:"AZOUMAG_Rapport_Inventaire.pdf", image:{type:"jpeg",quality:0.98}, html2canvas:{scale:2}, jsPDF:{unit:"mm",format:"a4",orientation:"portrait"} })
+      .from(document.getElementById("reportCard")).save().then(exitPrintMode);
+  });
+
+  /* ======================================================================
+     HISTORIQUE LOCAL (LocalStorage)
+     ====================================================================== */
+  var HISTORY_IMPORTS_KEY = "azoumag_history_imports";
+  var HISTORY_REPORTS_KEY = "azoumag_history_reports";
+
+  function saveImportToHistory(){
+    var binsOccupes = 0; state.binAgg.forEach(function(e){ if (e.count>0) binsOccupes++; });
+    var entry = { date: nowStamp(), fileName: state.fileName || "(sans nom)", rows: state.rows.length, binsDetected: binsOccupes };
+    pushHistory(HISTORY_IMPORTS_KEY, entry, 50);
+  }
+  function saveReportToHistory(data){
+    var entry = { date: nowStamp(), articles: data.articles, bins: data.bins, gaps: data.gaps };
+    pushHistory(HISTORY_REPORTS_KEY, entry, 50);
+  }
+  function pushHistory(key, entry, maxItems){
+    var list = [];
+    try { var raw = localStorage.getItem(key); if (raw) list = JSON.parse(raw); } catch(e){}
+    list.unshift(entry);
+    if (list.length > maxItems) list = list.slice(0, maxItems);
+    try { localStorage.setItem(key, JSON.stringify(list)); } catch(e){}
+  }
+  function readHistory(key){
+    try { var raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : []; } catch(e){ return []; }
+  }
+
+  function renderHistory(){
+    var imports = readHistory(HISTORY_IMPORTS_KEY);
+    var reports = readHistory(HISTORY_REPORTS_KEY);
+    document.querySelector("#historyImportsTable tbody").innerHTML = imports.length ? imports.map(function(i){
+      return '<tr><td>'+escapeHtml(i.date)+'</td><td>'+escapeHtml(i.fileName)+'</td><td>'+i.rows+'</td><td>'+i.binsDetected+'</td></tr>';
+    }).join("") : '<tr><td colspan="4" class="empty-state">Aucun import enregistré</td></tr>';
+    document.querySelector("#historyReportsTable tbody").innerHTML = reports.length ? reports.map(function(r){
+      return '<tr><td>'+escapeHtml(r.date)+'</td><td>'+r.articles+'</td><td>'+r.bins+'</td><td>'+r.gaps+'</td></tr>';
+    }).join("") : '<tr><td colspan="4" class="empty-state">Aucun rapport généré</td></tr>';
+  }
+
+  document.getElementById("btnClearHistory").addEventListener("click", function(){
+    if (!confirm("Effacer tout l'historique local (imports et rapports) ?")) return;
+    try { localStorage.removeItem(HISTORY_IMPORTS_KEY); localStorage.removeItem(HISTORY_REPORTS_KEY); } catch(e){}
+    renderHistory();
+  });
+
+  document.getElementById("btnClearAllLocalData").addEventListener("click", function(){
+    if (!confirm("Effacer TOUTES les données enregistrées localement (historique, comptages d'écarts sauvegardés, préférence de thème) ? Cette action est irréversible et ne touche pas les données actuellement affichées à l'écran, seulement ce qui est stocké dans le navigateur.")) return;
+    try {
+      var keysToRemove = [];
+      for (var i = 0; i < localStorage.length; i++){
+        var key = localStorage.key(i);
+        if (key && key.indexOf("azoumag_") === 0) keysToRemove.push(key);
+      }
+      keysToRemove.forEach(function(k){ localStorage.removeItem(k); });
+    } catch(e){}
+    renderHistory();
+    applyTheme("light");
+    alert("Toutes les données locales ont été effacées.");
+  });
+
+  /* ======================================================================
+     RESET GLOBAL
+     ====================================================================== */
+  document.getElementById("btnResetApp").addEventListener("click", function(){
+    if (!confirm("Charger un nouveau fichier ? Les données actuelles (hors historique) seront perdues.")) return;
+    state.headers=[]; state.rows=[]; state.mapping={bin:null,material:null,quantity:null,batch:null,highestLevelHu:null,hu:null,description:null};
+    state.allLines=[]; state.linesWithoutBin=[]; state.binIndex=new Map(); state.materialIndex=new Map();
+    state.binAgg=new Map(); state.materialAgg=new Map(); state.obdData=new Map();
+    state.binKeyList=[]; state.articleList=[]; state.ignoredLines=0; state.hasData=false; state.gapCounts={}; state.fileSignature="";
+    fileInput.value = "";
+    refreshAllModules();
+    document.getElementById("reportBody").innerHTML = '<div class="empty-state">Cliquez sur "Générer le Rapport" pour créer la synthèse.</div>';
+    document.getElementById("reportContent").classList.add("hidden");
+    document.getElementById("reportEmpty").classList.remove("hidden");
+    goToPage("import");
+  });
+
+  /* ---- Initialisation ---- */
+  goToPage("dashboard");
+  refreshAllModules();
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AZOUMAG INVENTORY SHEET GENERATOR</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<style>
+  /* ============================================================
+     AZOUMAG INVENTORY SHEET GENERATOR
+     Identité visuelle : couleurs fixes, pas de variables CSS
+     ============================================================ */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: #F5F5F5;
+    color: #111111;
+    font-family: "Segoe UI", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  body { min-height: 100vh; display: flex; flex-direction: column; }
+
+  /* ---------- HEADER ---------- */
+  .app-header {
+    background: #1D2240;
+    color: #FFF4EC;
+    padding: 18px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .app-header .brand-mark {
+    width: 44px; height: 44px;
+    background: #F37021;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 18px; color: #1D2240;
+    flex-shrink: 0;
+  }
+  .app-header .titles { margin-left: 16px; }
+  .app-header h1 {
+    font-size: 20px;
+    letter-spacing: 0.5px;
+    font-weight: 800;
+    color: #FFF4EC;
+  }
+  .app-header .subtitle {
+    font-size: 12px;
+    color: #F37021;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+  .header-left { display: flex; align-items: center; }
+  .header-right { display: flex; gap: 10px; }
+
+  /* ---------- FOOTER ---------- */
+  .app-footer {
+    background: #1D2240;
+    color: #FFF4EC;
+    text-align: center;
+    padding: 16px;
+    font-size: 12px;
+    line-height: 1.6;
+    margin-top: auto;
+  }
+  .app-footer strong { color: #F37021; }
+
+  /* ---------- LAYOUT ---------- */
+  main { flex: 1; padding: 24px 32px; max-width: 1600px; width: 100%; margin: 0 auto; }
+  .card {
+    background: #FFFFFF;
+    border: 1px solid #E3E3E3;
+    border-radius: 10px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  .hidden { display: none !important; }
+
+  /* ---------- IMPORT ZONE ---------- */
+  .import-zone {
+    border: 2px dashed #F37021;
+    border-radius: 10px;
+    background: #FFF4EC;
+    padding: 60px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .import-zone:hover, .import-zone.dragover { background: #FFE6D3; }
+  .import-zone h2 { color: #1D2240; font-size: 20px; margin-bottom: 8px; }
+  .import-zone p { color: #555; font-size: 13px; margin-bottom: 18px; }
+  .import-zone .formats { font-size: 11px; color: #888; margin-top: 14px; letter-spacing: 0.5px; }
+  input[type=file] { display: none; }
+
+  /* ---------- BUTTONS ---------- */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    border: none; border-radius: 6px;
+    padding: 10px 18px;
+    font-size: 13px; font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.3px;
+    transition: transform 0.06s ease, opacity 0.15s ease;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: #F37021; color: #FFFFFF; }
+  .btn-primary:hover { background: #D9601A; }
+  .btn-outline { background: #FFFFFF; color: #1D2240; border: 1.5px solid #1D2240; }
+  .btn-outline:hover { background: #1D2240; color: #FFFFFF; }
+  .btn-navy { background: #1D2240; color: #FFF4EC; }
+  .btn-navy:hover { background: #141729; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ---------- MAPPING ---------- */
+  .mapping-card h2 { color: #DC2626; font-size: 18px; margin-bottom: 6px; }
+  .mapping-card p.desc { font-size: 13px; color: #555; margin-bottom: 18px; }
+  .mapping-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px;
+  }
+  .mapping-field label {
+    display: block; font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.5px; color: #1D2240; font-weight: 700; margin-bottom: 6px;
+  }
+  .mapping-field select {
+    width: 100%; padding: 9px 10px; border-radius: 6px;
+    border: 1.5px solid #CCCCCC; font-size: 13px; background: #FFFFFF; color: #111111;
+  }
+  .mapping-field.detected select { border-color: #16A34A; }
+  .mapping-field .status { font-size: 10px; margin-top: 4px; font-weight: 700; }
+  .mapping-field.detected .status { color: #16A34A; }
+  .mapping-field.missing .status { color: #DC2626; }
+
+  /* ---------- KPI BAR ---------- */
+  .kpi-bar {
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 18px;
+  }
+  .kpi-item {
+    background: #FFFFFF; border: 1px solid #E3E3E3; border-radius: 8px;
+    padding: 14px 12px; text-align: center;
+    border-top: 3px solid #F37021;
+  }
+  .kpi-item .value { font-size: 22px; font-weight: 800; color: #1D2240; }
+  .kpi-item .label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #777; margin-top: 4px; }
+
+  /* ---------- FILTERS ---------- */
+  .filters-bar {
+    display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;
+    background: #FFFFFF; border: 1px solid #E3E3E3; border-radius: 8px;
+    padding: 14px; margin-bottom: 18px;
+  }
+  .filters-bar .field { flex: 1; min-width: 160px; }
+  .filters-bar label { display: block; font-size: 10px; text-transform: uppercase; color: #1D2240; font-weight: 700; margin-bottom: 5px; }
+  .filters-bar input {
+    width: 100%; padding: 8px 10px; border-radius: 6px; border: 1.5px solid #CCCCCC; font-size: 13px;
+  }
+  .filters-bar input:focus { outline: none; border-color: #F37021; }
+
+  /* ---------- TABS ---------- */
+  .tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+  .tab-btn {
+    background: #FFFFFF; border: 1.5px solid #1D2240; color: #1D2240;
+    padding: 10px 22px; border-radius: 6px; font-weight: 700; font-size: 13px; cursor: pointer;
+  }
+  .tab-btn.active { background: #1D2240; color: #FFF4EC; }
+  .tab-actions { display: flex; gap: 8px; margin-left: auto; }
+
+  /* ---------- RACKS ---------- */
+  .rack-block {
+    background: #FFFFFF; border: 1px solid #E3E3E3; border-radius: 8px;
+    padding: 16px; margin-bottom: 16px;
+  }
+  .rack-title {
+    background: #1D2240; color: #FFF4EC; font-weight: 800; font-size: 14px;
+    padding: 6px 14px; border-radius: 5px; display: inline-block; margin-bottom: 12px;
+    letter-spacing: 0.5px;
+  }
+  .level-row { display: flex; align-items: center; margin-bottom: 6px; }
+  .level-label {
+    width: 70px; flex-shrink: 0; font-size: 11px; font-weight: 700; color: #1D2240;
+    text-transform: uppercase;
+  }
+  .level-cells { display: flex; flex-wrap: wrap; gap: 4px; flex: 1; }
+  .bin-cell {
+    width: 70px; min-height: 58px;
+    border: 1px solid #BBBBBB; border-radius: 4px;
+    font-size: 9.5px; text-align: center; padding: 3px 2px;
+    display: flex; flex-direction: column; justify-content: space-between;
+    background: #FFFFFF;
+  }
+  .bin-cell .bin-code { font-weight: 800; font-size: 9px; color: #1D2240; }
+  .bin-cell.bin-empty { background: #16A34A; }
+  .bin-cell.bin-empty .bin-code { color: #FFFFFF; }
+  .bin-cell.bin-empty .bin-meta { color: #FFFFFF; }
+  .bin-cell.bin-over { background: #DC2626; }
+  .bin-cell.bin-over .bin-code { color: #FFFFFF; }
+  .bin-cell.bin-over .bin-meta { color: #FFFFFF; }
+  .bin-cell .bin-meta { font-size: 8.5px; color: #333333; }
+  .bin-cell .bin-check {
+    border: 1px solid #999999; background: #FFFFFF; height: 14px; margin-top: 2px; border-radius: 2px;
+  }
+  .bin-cell.dim { opacity: 0.18; }
+  .bin-cell.highlight { outline: 2px solid #F37021; outline-offset: -1px; }
+
+  /* ---------- OBD TABLE ---------- */
+  .obd-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .obd-table th {
+    background: #1D2240; color: #FFF4EC; text-align: left; padding: 10px 12px; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .obd-table td { padding: 9px 12px; border-bottom: 1px solid #EEEEEE; }
+  .obd-table tr:nth-child(even) { background: #FAFAFA; }
+  .obd-table tr.dim { display: none; }
+
+  /* ---------- PRINT HEADER (visible only in print) ---------- */
+  .print-header { display: none; }
+
+  /* ---------- EMPTY STATE ---------- */
+  .empty-state { text-align: center; padding: 40px; color: #888; font-size: 13px; }
+
+  /* ============================================================
+     PRINT STYLES
+     ============================================================ */
+  @media print {
+    @page { size: A4 landscape; margin: 8mm; }
+    body.print-mode .app-header,
+    body.print-mode .app-footer,
+    body.print-mode .import-zone,
+    body.print-mode .kpi-bar,
+    body.print-mode .filters-bar,
+    body.print-mode .tabs,
+    body.print-mode .no-print { display: none !important; }
+
+    body.print-mode .print-header {
+      display: flex; justify-content: space-between; font-size: 11px;
+      border-bottom: 2px solid #1D2240; padding-bottom: 6px; margin-bottom: 10px;
+    }
+    body.print-mode .card { box-shadow: none; border: none; padding: 0; }
+    body.print-mode .rack-block { break-inside: avoid; border: 1px solid #999; }
+    body.print-mode .bin-cell { border: 1px solid #666; }
+
+    body.print-mode section[data-view="MP"] .print-page { page-break-after: always; }
+    body.print-mode section[data-view="PF"] .print-page { page-break-after: always; }
+    body.print-mode section[data-view="MP"] .print-page:last-child,
+    body.print-mode section[data-view="PF"] .print-page:last-child { page-break-after: auto; }
+
+    body.print-mode[data-print-target="MP"] section[data-view="PF"],
+    body.print-mode[data-print-target="MP"] section[data-view="OBD"] { display: none !important; }
+    body.print-mode[data-print-target="PF"] section[data-view="MP"],
+    body.print-mode[data-print-target="PF"] section[data-view="OBD"] { display: none !important; }
+    body.print-mode[data-print-target="OBD"] section[data-view="MP"],
+    body.print-mode[data-print-target="OBD"] section[data-view="PF"] { display: none !important; }
+  }
+
+  @media (max-width: 900px) {
+    .kpi-bar { grid-template-columns: repeat(3, 1fr); }
+    .mapping-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<header class="app-header no-print">
+  <div class="header-left">
+    <div class="brand-mark">AZ</div>
+    <div class="titles">
+      <h1>AZOUMAG INVENTORY SHEET GENERATOR</h1>
+      <div class="subtitle">SAP Inventory Planning &amp; Counting Tool</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <button class="btn btn-outline" id="btnReset">Nouveau Fichier</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- ============ PAGE D'ACCUEIL : IMPORT ============ -->
+  <section id="importSection" class="card">
+    <div class="import-zone" id="dropZone">
+      <h2>Import SAP Inventory File</h2>
+      <p>Drag &amp; Drop <strong>or</strong> <span style="color:#F37021; text-decoration:underline;">Browse File</span></p>
+      <button class="btn btn-primary" id="btnBrowse">Browse File</button>
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+      <div class="formats">FORMATS ACCEPTÉS : .XLSX &nbsp;·&nbsp; .XLS &nbsp;·&nbsp; .CSV</div>
+    </div>
+  </section>
+
+  <!-- ============ MANUAL MAPPING ============ -->
+  <section id="mappingSection" class="card mapping-card hidden">
+    <h2>Manual Mapping Required</h2>
+    <p class="desc">Certaines colonnes n'ont pas été détectées automatiquement. Sélectionnez-les manuellement ci-dessous.</p>
+    <div class="mapping-grid" id="mappingGrid"></div>
+    <button class="btn btn-primary" id="btnValidateMapping">Validate Mapping</button>
+  </section>
+
+  <!-- ============ DASHBOARD ============ -->
+  <section id="dashboardSection" class="hidden">
+
+    <div class="kpi-bar no-print" id="kpiBar"></div>
+
+    <div class="filters-bar no-print">
+      <div class="field">
+        <label>Recherche Article</label>
+        <input type="text" id="filterArticle" placeholder="Ex: 100234">
+      </div>
+      <div class="field">
+        <label>Recherche Bin</label>
+        <input type="text" id="filterBin" placeholder="Ex: A-0-1">
+      </div>
+      <div class="field">
+        <label>Recherche Rack</label>
+        <input type="text" id="filterRack" placeholder="Ex: A, B0, J...">
+      </div>
+    </div>
+
+    <div class="tabs no-print">
+      <button class="tab-btn active" data-tab="MP">MP</button>
+      <button class="tab-btn" data-tab="PF">PF</button>
+      <button class="tab-btn" data-tab="OBD">OBD</button>
+      <div class="tab-actions">
+        <button class="btn btn-navy" id="btnExportPdf">Export PDF</button>
+        <button class="btn btn-outline" id="btnPrint">Print</button>
+      </div>
+    </div>
+
+    <section data-view="MP" id="viewMP">
+      <div class="print-header">
+        <span>Date : ______________________</span>
+        <span>Inventoriste : ______________________</span>
+        <span>Equipe : ______________________</span>
+      </div>
+      <div id="rackContainerMP"></div>
+    </section>
+
+    <section data-view="PF" id="viewPF" class="hidden">
+      <div class="print-header">
+        <span>Date : ______________________</span>
+        <span>Inventoriste : ______________________</span>
+        <span>Equipe : ______________________</span>
+      </div>
+      <div id="rackContainerPF"></div>
+    </section>
+
+    <section data-view="OBD" id="viewOBD" class="hidden">
+      <div class="print-header">
+        <span>Date : ______________________</span>
+        <span>Inventoriste : ______________________</span>
+        <span>Equipe : ______________________</span>
+      </div>
+      <div class="card print-page">
+        <table class="obd-table" id="obdTable">
+          <thead><tr><th>TPA</th><th>Article</th><th>Quantité Totale</th></tr></thead>
+          <tbody id="obdTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+  </section>
+
+</main>
+
+<footer class="app-footer no-print">
+  <div><strong>AZOUMAG © 2026</strong> — The Ultimate Online Solutions</div>
+  <div>All Rights Reserved 2026</div>
+  <div>Generated by AZOUMAG INVENTORY SHEET GENERATOR</div>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ======================================================================
+     CONFIGURATION DES RACKS
+     ====================================================================== */
+  var MP_RACKS = ["A","B0","B1","C0","C1","D0","D1","E0","E1","F0","F1","G0","G1","H0","H1","I"];
+  var MP_LEVELS = [4,3,2,1,0]; // haut vers le bas
+  var MP_POSITIONS = 15;
+
+  var PF_RACKS = ["J","K0","K1","L0","L1","M0","M1","N"];
+  var PF_LEVELS = [3,2,1,0]; // haut vers le bas
+  var PF_POSITIONS = 21;
+
+  var OBD_TPA = ["TPA1","TPA2","TPA3","TPA4","TPA5","TPA6"];
+
+  var COLUMN_KEYWORDS = {
+    bin: ["storage bin","storagebin","bin","lgpla","emplacement","rack location","storage location"],
+    material: ["material","article","product","material number","matnr","materiel","référence","reference"],
+    quantity: ["quantity","qty","available","stock","menge","available stock","quantite","quantité"],
+    hu: ["hu","handling unit","hu number","huid","handling"]
+  };
+
+  /* ======================================================================
+     ETAT GLOBAL
+     ====================================================================== */
+  var state = {
+    headers: [],
+    rows: [],
+    mapping: { bin: null, material: null, quantity: null, hu: null },
+    binData: new Map(),   // bin -> { count, materials:Set, rack, level, pos, section }
+    obdData: new Map(),   // "TPA|material" -> qty sum
+    activeTab: "MP"
+  };
+
+  /* ======================================================================
+     UTILITAIRES
+     ====================================================================== */
+  function norm(s){ return String(s || "").toLowerCase().trim().replace(/[_\-\.]/g," ").replace(/\s+/g," "); }
+
+  function detectColumn(headers, keywords){
+    for (var i=0;i<headers.length;i++){
+      var h = norm(headers[i]);
+      for (var k=0;k<keywords.length;k++){
+        var kw = keywords[k];
+        if (h === kw || h.indexOf(kw) !== -1 || kw.indexOf(h) !== -1){
+          return i;
+        }
+      }
+    }
+    return null;
+  }
+
+  function toNumber(v){
+    if (v === null || v === undefined || v === "") return 0;
+    var n = parseFloat(String(v).replace(",","."));
+    return isNaN(n) ? 0 : n;
+  }
+
+  /* ======================================================================
+     IMPORT FICHIER
+     ====================================================================== */
+  var dropZone = document.getElementById("dropZone");
+  var fileInput = document.getElementById("fileInput");
+
+  document.getElementById("btnBrowse").addEventListener("click", function(){ fileInput.click(); });
+  dropZone.addEventListener("click", function(e){
+    if (e.target.id !== "btnBrowse") fileInput.click();
+  });
+  dropZone.addEventListener("dragover", function(e){ e.preventDefault(); dropZone.classList.add("dragover"); });
+  dropZone.addEventListener("dragleave", function(){ dropZone.classList.remove("dragover"); });
+  dropZone.addEventListener("drop", function(e){
+    e.preventDefault(); dropZone.classList.remove("dragover");
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener("change", function(e){
+    if (e.target.files && e.target.files[0]) handleFile(e.target.files[0]);
+  });
+
+  function handleFile(file){
+    var reader = new FileReader();
+    reader.onload = function(evt){
+      var data = new Uint8Array(evt.target.result);
+      var wb = XLSX.read(data, { type: "array" });
+      var firstSheetName = wb.SheetNames[0];
+      var ws = wb.Sheets[firstSheetName];
+      var json = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" });
+      if (!json.length){ alert("Fichier vide ou illisible."); return; }
+      state.headers = json[0].map(function(h){ return String(h); });
+      state.rows = json.slice(1).filter(function(r){ return r.some(function(c){ return String(c).trim() !== ""; }); });
+
+      state.mapping.bin = detectColumn(state.headers, COLUMN_KEYWORDS.bin);
+      state.mapping.material = detectColumn(state.headers, COLUMN_KEYWORDS.material);
+      state.mapping.quantity = detectColumn(state.headers, COLUMN_KEYWORDS.quantity);
+      state.mapping.hu = detectColumn(state.headers, COLUMN_KEYWORDS.hu);
+
+      var missing = ["bin","material","quantity","hu"].filter(function(f){ return state.mapping[f] === null; });
+      if (missing.length){
+        showMappingUI(missing);
+      } else {
+        proceedToDashboard();
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  /* ======================================================================
+     MAPPING MANUEL
+     ====================================================================== */
+  function showMappingUI(missingFields){
+    document.getElementById("importSection").classList.add("hidden");
+    var mappingSection = document.getElementById("mappingSection");
+    mappingSection.classList.remove("hidden");
+    var grid = document.getElementById("mappingGrid");
+    grid.innerHTML = "";
+
+    var fieldLabels = { bin: "Storage Bin", material: "Material", quantity: "Quantity", hu: "HU" };
+
+    ["bin","material","quantity","hu"].forEach(function(field){
+      var isDetected = state.mapping[field] !== null;
+      var wrap = document.createElement("div");
+      wrap.className = "mapping-field " + (isDetected ? "detected" : "missing");
+      var label = document.createElement("label");
+      label.textContent = fieldLabels[field];
+      var select = document.createElement("select");
+      select.id = "mapSelect_" + field;
+      var optNone = document.createElement("option");
+      optNone.value = ""; optNone.textContent = "-- Sélectionner une colonne --";
+      select.appendChild(optNone);
+      state.headers.forEach(function(h, idx){
+        var opt = document.createElement("option");
+        opt.value = idx; opt.textContent = h || ("Colonne " + (idx+1));
+        if (state.mapping[field] === idx) opt.selected = true;
+        select.appendChild(opt);
+      });
+      var status = document.createElement("div");
+      status.className = "status";
+      status.textContent = isDetected ? "Détectée automatiquement" : "Non détectée — choix requis";
+      wrap.appendChild(label); wrap.appendChild(select); wrap.appendChild(status);
+      grid.appendChild(wrap);
+    });
+  }
+
+  document.getElementById("btnValidateMapping").addEventListener("click", function(){
+    var ok = true;
+    ["bin","material","quantity","hu"].forEach(function(field){
+      var sel = document.getElementById("mapSelect_" + field);
+      var val = sel.value;
+      if (val === ""){ ok = false; sel.style.borderColor = "#DC2626"; }
+      else { state.mapping[field] = parseInt(val, 10); sel.style.borderColor = "#16A34A"; }
+    });
+    if (!ok){ alert("Veuillez sélectionner toutes les colonnes requises."); return; }
+    document.getElementById("mappingSection").classList.add("hidden");
+    proceedToDashboard();
+  });
+
+  /* ======================================================================
+     TRAITEMENT DES DONNEES
+     ====================================================================== */
+  function parseBinCode(binRaw){
+    var bin = String(binRaw || "").trim().toUpperCase();
+    if (!bin) return null;
+
+    if (OBD_TPA.indexOf(bin) !== -1){
+      return { section: "OBD", tpa: bin };
+    }
+
+    var parts = bin.split("-");
+    if (parts.length === 3){
+      var rack = parts[0], level = parts[1], pos = parts[2];
+      if (MP_RACKS.indexOf(rack) !== -1){
+        return { section: "MP", rack: rack, level: level, pos: pos, bin: bin };
+      }
+      if (PF_RACKS.indexOf(rack) !== -1){
+        return { section: "PF", rack: rack, level: level, pos: pos, bin: bin };
+      }
+    }
+    return null;
+  }
+
+  function processData(){
+    state.binData = new Map();
+    state.obdData = new Map();
+
+    var binIdx = state.mapping.bin, matIdx = state.mapping.material, qtyIdx = state.mapping.quantity;
+
+    state.rows.forEach(function(row){
+      var binRaw = row[binIdx];
+      var material = String(row[matIdx] || "").trim();
+      var qty = toNumber(row[qtyIdx]);
+      var parsed = parseBinCode(binRaw);
+      if (!parsed) return;
+
+      if (parsed.section === "OBD"){
+        var key = parsed.tpa + "|" + material;
+        if (!state.obdData.has(key)){
+          state.obdData.set(key, { tpa: parsed.tpa, material: material, qty: 0 });
+        }
+        state.obdData.get(key).qty += qty;
+        return;
+      }
+
+      var binKey = parsed.bin;
+      if (!state.binData.has(binKey)){
+        state.binData.set(binKey, {
+          count: 0, materials: new Set(), rack: parsed.rack, level: parsed.level,
+          pos: parsed.pos, section: parsed.section
+        });
+      }
+      var entry = state.binData.get(binKey);
+      entry.count += 1; // HU = nombre de lignes ayant le même Storage Bin
+      if (material) entry.materials.add(material);
+    });
+  }
+
+  /* ======================================================================
+     RENDU DASHBOARD
+     ====================================================================== */
+  function proceedToDashboard(){
+    processData();
+    document.getElementById("importSection").classList.add("hidden");
+    document.getElementById("dashboardSection").classList.remove("hidden");
+    renderKpis();
+    renderRacks("MP");
+    renderRacks("PF");
+    renderObd();
+    applyFilters();
+  }
+
+  function binCellHtml(binKey, entry){
+    var hu = entry ? entry.count : 0;
+    var art = entry ? entry.materials.size : 0;
+    var cls = "bin-cell";
+    if (hu === 0) cls += " bin-empty";
+    else if (hu > 100) cls += " bin-over";
+    return '<div class="' + cls + '" data-bin="' + binKey + '" data-art="' + (entry ? Array.from(entry.materials).join(",") : "") + '">' +
+      '<div class="bin-code">' + binKey + '</div>' +
+      '<div class="bin-meta">HU: ' + hu + ' | ART: ' + art + '</div>' +
+      '<div class="bin-check"></div>' +
+    '</div>';
+  }
+
+  function renderRacks(section){
+    var racks = section === "MP" ? MP_RACKS : PF_RACKS;
+    var levels = section === "MP" ? MP_LEVELS : PF_LEVELS;
+    var positions = section === "MP" ? MP_POSITIONS : PF_POSITIONS;
+    var container = document.getElementById(section === "MP" ? "rackContainerMP" : "rackContainerPF");
+    var racksPerPage = section === "MP" ? 4 : 3;
+
+    var html = "";
+    racks.forEach(function(rack, ri){
+      if (ri % racksPerPage === 0){
+        if (ri > 0) html += "</div>"; // close previous print-page
+        html += '<div class="print-page">';
+      }
+      html += '<div class="rack-block" data-rack="' + rack + '">';
+      html += '<div class="rack-title">RACK ' + rack + '</div>';
+      levels.forEach(function(level){
+        html += '<div class="level-row"><div class="level-label">Niveau ' + level + '</div><div class="level-cells">';
+        for (var p = 1; p <= positions; p++){
+          var binKey = rack + "-" + level + "-" + p;
+          var entry = state.binData.get(binKey);
+          html += binCellHtml(binKey, entry);
+        }
+        html += '</div></div>';
+      });
+      html += '</div>';
+      if (ri === racks.length - 1) html += "</div>"; // close last print-page
+    });
+    container.innerHTML = html;
+  }
+
+  function renderObd(){
+    var tbody = document.getElementById("obdTableBody");
+    tbody.innerHTML = "";
+    var rowsArr = Array.from(state.obdData.values()).sort(function(a,b){
+      if (a.tpa !== b.tpa) return a.tpa.localeCompare(b.tpa);
+      return a.material.localeCompare(b.material);
+    });
+    if (!rowsArr.length){
+      tbody.innerHTML = '<tr><td colspan="3" class="empty-state">Aucune donnée OBD (TPA1–TPA6) détectée</td></tr>';
+      return;
+    }
+    rowsArr.forEach(function(r){
+      var tr = document.createElement("tr");
+      tr.setAttribute("data-tpa", r.tpa);
+      tr.setAttribute("data-material", r.material);
+      tr.innerHTML = '<td>' + r.tpa + '</td><td>' + r.material + '</td><td>' + r.qty + '</td>';
+      tbody.appendChild(tr);
+    });
+  }
+
+  function renderKpis(){
+    var totalArticles = new Set();
+    var totalHu = 0;
+    var totalBins = 0;
+    var binsVides = 0;
+    var binsOccupes = 0;
+    var racksOccupesSet = new Set();
+
+    var allRackKeys = [];
+    MP_RACKS.forEach(function(r){ MP_LEVELS.forEach(function(l){ for (var p=1;p<=MP_POSITIONS;p++) allRackKeys.push(r+"-"+l+"-"+p+"|"+r); }); });
+    PF_RACKS.forEach(function(r){ PF_LEVELS.forEach(function(l){ for (var p=1;p<=PF_POSITIONS;p++) allRackKeys.push(r+"-"+l+"-"+p+"|"+r); }); });
+
+    totalBins = allRackKeys.length;
+
+    allRackKeys.forEach(function(combo){
+      var parts = combo.split("|");
+      var binKey = parts[0], rack = parts[1];
+      var entry = state.binData.get(binKey);
+      var hu = entry ? entry.count : 0;
+      if (hu === 0){ binsVides++; }
+      else { binsOccupes++; racksOccupesSet.add(rack); }
+      if (entry){
+        totalHu += entry.count;
+        entry.materials.forEach(function(m){ totalArticles.add(m); });
+      }
+    });
+
+    var kpis = [
+      { label: "Total Articles", value: totalArticles.size },
+      { label: "Total HU", value: totalHu },
+      { label: "Total Bins", value: totalBins },
+      { label: "Bins Vides", value: binsVides },
+      { label: "Bins Occupés", value: binsOccupes },
+      { label: "Racks Occupés", value: racksOccupesSet.size }
+    ];
+
+    var bar = document.getElementById("kpiBar");
+    bar.innerHTML = kpis.map(function(k){
+      return '<div class="kpi-item"><div class="value">' + k.value + '</div><div class="label">' + k.label + '</div></div>';
+    }).join("");
+  }
+
+  /* ======================================================================
+     TABS
+     ====================================================================== */
+  document.querySelectorAll(".tab-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      document.querySelectorAll(".tab-btn").forEach(function(b){ b.classList.remove("active"); });
+      btn.classList.add("active");
+      state.activeTab = btn.getAttribute("data-tab");
+      ["MP","PF","OBD"].forEach(function(t){
+        document.getElementById("view" + t).classList.toggle("hidden", t !== state.activeTab);
+      });
+    });
+  });
+
+  /* ======================================================================
+     FILTRES
+     ====================================================================== */
+  function applyFilters(){
+    var article = document.getElementById("filterArticle").value.trim().toLowerCase();
+    var bin = document.getElementById("filterBin").value.trim().toLowerCase();
+    var rack = document.getElementById("filterRack").value.trim().toLowerCase();
+
+    document.querySelectorAll(".bin-cell").forEach(function(cell){
+      var cellBin = (cell.getAttribute("data-bin") || "").toLowerCase();
+      var cellArt = (cell.getAttribute("data-art") || "").toLowerCase();
+      var cellRack = cell.closest(".rack-block") ? cell.closest(".rack-block").getAttribute("data-rack").toLowerCase() : "";
+
+      var matchArticle = !article || cellArt.indexOf(article) !== -1;
+      var matchBin = !bin || cellBin.indexOf(bin) !== -1;
+      var matchRack = !rack || cellRack.indexOf(rack) !== -1;
+
+      var match = matchArticle && matchBin && matchRack;
+      var anyFilter = article || bin || rack;
+
+      cell.classList.toggle("dim", anyFilter && !match);
+      cell.classList.toggle("highlight", anyFilter && match && (article || bin));
+    });
+
+    document.querySelectorAll("#obdTableBody tr[data-tpa]").forEach(function(row){
+      var rowMaterial = (row.getAttribute("data-material") || "").toLowerCase();
+      var rowTpa = (row.getAttribute("data-tpa") || "").toLowerCase();
+      var matchArticle = !article || rowMaterial.indexOf(article) !== -1;
+      var matchRack = !rack || rowTpa.indexOf(rack) !== -1;
+      row.classList.toggle("dim", !(matchArticle && matchRack));
+    });
+  }
+
+  ["filterArticle","filterBin","filterRack"].forEach(function(id){
+    document.getElementById(id).addEventListener("input", applyFilters);
+  });
+
+  /* ======================================================================
+     EXPORT PDF / PRINT
+     ====================================================================== */
+  function printSection(section){
+    document.body.classList.add("print-mode");
+    document.body.setAttribute("data-print-target", section);
+    ["MP","PF","OBD"].forEach(function(t){
+      document.getElementById("view" + t).classList.toggle("hidden", t !== section);
+    });
+    window.print();
+  }
+
+  window.addEventListener("afterprint", function(){
+    document.body.classList.remove("print-mode");
+    document.body.removeAttribute("data-print-target");
+    ["MP","PF","OBD"].forEach(function(t){
+      document.getElementById("view" + t).classList.toggle("hidden", t !== state.activeTab);
+    });
+  });
+
+  document.getElementById("btnPrint").addEventListener("click", function(){
+    printSection(state.activeTab);
+  });
+
+  document.getElementById("btnExportPdf").addEventListener("click", function(){
+    var section = state.activeTab;
+    var target = document.getElementById("view" + section);
+    document.body.classList.add("print-mode");
+    document.body.setAttribute("data-print-target", section);
+    var opt = {
+      margin: 5,
+      filename: "AZOUMAG_Inventory_" + section + ".pdf",
+      image: { type: "jpeg", quality: 0.98 },
+      html2canvas: { scale: 2 },
+      jsPDF: { unit: "mm", format: "a4", orientation: "landscape" },
+      pagebreak: { mode: ["css"] }
+    };
+    html2pdf().set(opt).from(target).save().then(function(){
+      document.body.classList.remove("print-mode");
+      document.body.removeAttribute("data-print-target");
+    });
+  });
+
+  /* ======================================================================
+     RESET
+     ====================================================================== */
+  document.getElementById("btnReset").addEventListener("click", function(){
+    if (!confirm("Charger un nouveau fichier ? Les données actuelles seront perdues.")) return;
+    state.headers = []; state.rows = [];
+    state.mapping = { bin: null, material: null, quantity: null, hu: null };
+    state.binData = new Map(); state.obdData = new Map();
+    fileInput.value = "";
+    document.getElementById("dashboardSection").classList.add("hidden");
+    document.getElementById("mappingSection").classList.add("hidden");
+    document.getElementById("importSection").classList.remove("hidden");
+  });
+
+})();
+</script>
+</body>
+</html>

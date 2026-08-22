@@ -114,10 +114,15 @@ License key for: Acme Logistique SARL
 ────────────────────────────────────────────────────────────────
 AZMG-eyJjIjoiQWNtZSBMb2dpc3RpcXVlIFNBUkwi…7mro5tw1zWa2…T9Lxhw
 ────────────────────────────────────────────────────────────────
+✓ Saved to registry: licenses/registry.csv
+✓ Saved to file:     licenses/acme-logistique-sarl-20260822-143012.txt
+
 Send this key to the customer. They paste it into the activation gate.
 ```
 
 📋 **Copiez TOUTE la ligne `AZMG-…`** — c'est une seule ligne continue, sans espaces, sans retour à la ligne.
+
+💾 **La clé est automatiquement enregistrée** dans votre registre privé (dossier `licenses/`, git-ignoré, permissions propriétaire seulement). Voir Étape 5 pour la consulter.
 
 ### Étape 4 · Vérifier avant d'envoyer (fortement recommandé)
 
@@ -137,22 +142,52 @@ Résultat attendu :
 
 Si le nom a une faute de frappe → recréez la clé **avant** d'envoyer. Impossible de "rappeler" une clé envoyée.
 
-### Étape 5 · Enregistrer la vente (registre local)
+### Étape 5 · Consulter et gérer votre registre
 
-Créez un fichier `~/azoumag-ventes.txt` (**pas dans le repo Git**) :
+Chaque clé émise est **automatiquement enregistrée** dans le dossier `licenses/` (git-ignoré, permissions 700/600 = vous seul y avez accès).
+
+Deux fichiers sont créés par mint :
+- `licenses/registry.csv` — registre principal (une ligne ajoutée par clé)
+- `licenses/<slug>-<horodatage>.txt` — copie individuelle de chaque licence (facile à ré-envoyer par email)
+
+**Voir toutes les licences émises :**
+```bash
+node scripts/generate-license.mjs --list
+```
+
+Affichage :
+```
+Registre des licences (3 entrées) — licenses/registry.csv
+──────────────────────────────────────────────────────────
+  1. 2026-08-22 14:30:12  │  Acme Logistique SARL
+     AZMG-eyJjIjoiQW…T9Lxhw
+  2. 2026-08-25 09:15:44  │  Beta Warehouse BV
+     AZMG-eyJjIjoiQm…xK2mQpq
+  3. 2026-08-30 16:02:33  │  Gamma Storage Inc
+     AZMG-eyJjIjoiR2…LmnRt5s
+──────────────────────────────────────────────────────────
+Total : 3 licences
+```
+
+Ajoutez `--full` pour voir les clés complètes (utile pour copier-coller).
+
+**Chercher une licence par nom client :**
+```bash
+node scripts/generate-license.mjs --find "acme"
+```
+
+Cherche dans tous les noms (insensible à la casse, correspondance partielle). Utile si un client vous redemande sa clé.
+
+**Suivi commercial complémentaire (recommandé) :** le registre stocke uniquement les données techniques (date, nom, clé). Pour le suivi commercial (email, montant, facture…), tenez à côté un fichier `~/azoumag-ventes.txt` :
 
 ```
 DATE       | NOM CLIENT                       | EMAIL               | STATUT     | NOTES
 -----------|----------------------------------|---------------------|------------|------------
 2026-08-22 | Acme Logistique SARL             | dg@acme.ma          | payé 500€  | facture 001
 2026-08-25 | Beta Warehouse BV                | ops@beta.nl         | payé 300€  | facture 002
-2026-08-30 | Gamma Storage Inc                | it@gamma.com        | essai 30j  | oral ok
 ```
 
-Utilité :
-- Retrouver rapidement à qui appartient une clé donnée
-- Piste d'audit si une clé fuite
-- Suivi comptable
+Sauvegardez le dossier `licenses/` régulièrement (clé USB chiffrée, cloud privé) — c'est votre seul historique.
 
 ### Étape 6 · Envoyer l'email au client
 
@@ -270,6 +305,36 @@ Le système actuel émet des licences **perpétuelles** — pas d'expiration. Po
 1. **Confiance** : émettez une clé normale, mais tenez un tableau des essais et relancez le client avant la fin (ne coûte rien mais pas de blocage automatique).
 2. **Amélioration future** : demandez-moi d'ajouter un champ `expires` (date d'expiration) dans le payload — la vérification browser refusera automatiquement les clés expirées. C'est un ajout d'~20 lignes de code.
 
+### Cas G · Supprimer une entrée du registre
+
+⚠ **Attention à la différence :**
+- Supprimer du **registre** = enlever de VOTRE liste locale. Facile. La clé chez le client **fonctionne toujours**.
+- **Révoquer** la clé = empêcher le client de l'utiliser. **Impossible** avec le système actuel (cf. Cas D).
+
+**Suppression interactive (avec confirmation) :**
+```bash
+node scripts/generate-license.mjs --delete "acme"
+```
+
+Le script affiche les correspondances trouvées et demande confirmation avant de supprimer. Si plusieurs matches, il vous laisse choisir : `1,3` (numéros), `all` (tous), ou `annuler`.
+
+**Suppression sans confirmation (usage scripté) :**
+```bash
+node scripts/generate-license.mjs --delete "acme" --yes
+```
+
+**Supprimer plusieurs matches d'un coup :**
+```bash
+node scripts/generate-license.mjs --delete "acme" --all --yes
+```
+
+Le script :
+1. Retire la ligne du `licenses/registry.csv`
+2. Supprime le fichier individuel `licenses/<slug>-<horodatage>.txt`
+3. Affiche un rappel : la clé chez le client reste fonctionnelle
+
+**Quand utiliser :** client remboursé, essai terminé, entrée créée par erreur, ménage annuel du registre.
+
 ---
 
 ## 📋 Partie 5 — Aide-mémoire (à imprimer)
@@ -277,10 +342,16 @@ Le système actuel émet des licences **perpétuelles** — pas d'expiration. Po
 | Action | Commande |
 |---|---|
 | Créer une clé | `node scripts/generate-license.mjs "Nom Client"` |
+| Lister toutes les licences | `node scripts/generate-license.mjs --list` |
+| Lister avec clés complètes | `node scripts/generate-license.mjs --list --full` |
+| Chercher un client | `node scripts/generate-license.mjs --find "nom"` |
+| Supprimer du registre | `node scripts/generate-license.mjs --delete "nom"` |
+| Suppression sans confirmation | `node scripts/generate-license.mjs --delete "nom" --yes` |
 | Vérifier une clé | `node scripts/generate-license.mjs --verify "AZMG-…"` |
 | Voir la clé publique | `node scripts/generate-license.mjs --show-public` |
 | Aide | `node scripts/generate-license.mjs --help` |
 | Emplacement clé privée | `keys/private.pem` (**À SAUVEGARDER**) |
+| Emplacement registre | `licenses/` (**À SAUVEGARDER**, git-ignoré) |
 | Emplacement application | `inventory-sheet-generator-v3.html` |
 | Ligne du HTML avec clé publique | ligne 379 |
 
@@ -290,9 +361,9 @@ Le système actuel émet des licences **perpétuelles** — pas d'expiration. Po
 
 1. **Ne partagez JAMAIS `keys/private.pem`** — c'est votre clé de signature. Traitez-la comme un code PIN de carte bancaire.
 2. **Vérifiez toujours le nom du client** avant d'envoyer — le nom est gravé pour toujours dans la clé.
-3. **Tenez un registre de vos ventes** — c'est votre seul moyen de savoir à qui appartient une clé donnée.
+3. **Sauvegardez le dossier `licenses/`** — chaque clé y est enregistrée automatiquement ; c'est votre seule trace de qui possède quoi.
 4. **Le même fichier HTML fonctionne pour tous les clients** — un seul build, des clés illimitées.
-5. **Les licences perpétuelles ne peuvent pas être révoquées individuellement** — votre tarification doit en tenir compte (paiement unique pour licence à vie, ou passez à un modèle SaaS hébergé si vous voulez pouvoir révoquer par siège).
+5. **Les licences perpétuelles ne peuvent pas être révoquées individuellement** — supprimer du registre n'invalide PAS la clé chez le client. Votre tarification doit en tenir compte (paiement unique pour licence à vie, ou passez à un modèle SaaS hébergé si vous voulez pouvoir révoquer par siège).
 
 ---
 

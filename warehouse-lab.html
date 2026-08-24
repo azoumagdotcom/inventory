@@ -1705,6 +1705,11 @@ body.license-locked { overflow: hidden; }
     loadZonesFromConfig();
     applyBranding();
     if (typeof renderInvTabsAndViews === "function") renderInvTabsAndViews();
+    // Si des données étaient chargées avant que la config soit prête (ex: session restaurée
+    // avant le wizard), les rerouter avec les nouvelles zones.
+    if (typeof state !== "undefined" && state && state.hasData && typeof processData === "function"){
+      try { processData(); } catch(e){ console.warn("[WLAB] reprocess on config-ready failed:", e); }
+    }
     if (window.__wlabAppRefresh) window.__wlabAppRefresh();
   });
 

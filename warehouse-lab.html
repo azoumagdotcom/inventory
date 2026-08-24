@@ -1288,6 +1288,7 @@ body.license-locked { overflow: hidden; }
       <li class="nav-item"><div class="nav-link" data-page="batch"><span class="ico">&#9881;</span> Analyse Batchs</div></li>
       <li class="nav-item"><div class="nav-link" data-page="gap"><span class="ico">&#8776;</span> Écarts Inventaire</div></li>
       <li class="nav-item"><div class="nav-link" data-page="compare"><span class="ico">&#8646;</span> Comparaison</div></li>
+      <li class="nav-item"><div class="nav-link" data-page="anomalies"><span class="ico">&#9888;</span> Anomalies</div></li>
       <li class="nav-item"><div class="nav-link" data-page="report"><span class="ico">&#128203;</span> Rapport</div></li>
       <li class="nav-item"><div class="nav-link" data-page="history"><span class="ico">&#8635;</span> Historique</div></li>
     </ul>
@@ -1663,6 +1664,23 @@ body.license-locked { overflow: hidden; }
         </div>
       </div>
     </div>
+    <!-- ============ PAGE : ANOMALIES ============ -->
+    <div class="page hidden" id="page-anomalies">
+      <div class="page-desc">Détection automatique des incohérences de données SAP : bins non routés, articles éclatés, master HU dans plusieurs bins, etc.</div>
+      <div id="anomaliesEmpty" class="card"><div class="empty-state">Importez un fichier pour détecter les anomalies.</div></div>
+      <div id="anomaliesContent" class="hidden">
+        <div class="card">
+          <div class="page-title-row">
+            <div><h2 style="font-size:14px; color:#1D2240;">Synthèse</h2><div id="anomaliesSummary" class="page-desc"></div></div>
+            <div class="btn-row">
+              <button class="btn btn-navy btn-sm" id="btnExportAnomaliesExcel">Export Excel</button>
+            </div>
+          </div>
+        </div>
+        <div class="kpi-grid" id="anomaliesKpiGrid"></div>
+        <div id="anomaliesCards"></div>
+      </div>
+    </div>
     <!-- ============ PAGE : RAPPORT AUTOMATIQUE ============ -->
     <div class="page hidden" id="page-report">
       <div class="page-desc">Rapport de synthèse généré automatiquement à partir des données importées.</div>
@@ -1929,7 +1947,8 @@ body.license-locked { overflow: hidden; }
      NAVIGATION SIDEBAR / PAGES
      ====================================================================== */
   var PAGE_TITLES = { dashboard:"Dashboard", import:"Import SAP", inventory:"Feuilles d'Inventaire", barcode:"Codes-barres",
-    bins:"Gestion des Bins", hu:"Analyse HU", batch:"Analyse Batchs", gap:"Écarts Inventaire", report:"Rapport", history:"Historique" };
+    bins:"Gestion des Bins", hu:"Analyse HU", batch:"Analyse Batchs", gap:"Écarts Inventaire",
+    compare:"Comparaison", anomalies:"Anomalies", report:"Rapport", history:"Historique" };
 
   function goToPage(page){
     document.querySelectorAll(".nav-link").forEach(function(l){ l.classList.toggle("active", l.getAttribute("data-page") === page); });
@@ -1939,6 +1958,8 @@ body.license-locked { overflow: hidden; }
     if (page === "hu" && state.hasData) renderHuAnalysis();
     if (page === "batch" && state.hasData) renderBatchAnalysis();
     if (page === "gap" && state.hasData) renderGapTable();
+    if (page === "compare") renderCompareModule();
+    if (page === "anomalies") renderAnomaliesModule();
     if (page === "report") renderReportPage();
     closeSidebar();
   }
@@ -2257,6 +2278,7 @@ body.license-locked { overflow: hidden; }
     safeRun(function(){ if (!document.getElementById("page-gap").classList.contains("hidden")) renderGapTable(); }, "Écarts Inventaire");
     safeRun(renderBaselineStatus, "État Référence");
     safeRun(renderCompareModule, "Comparaison");
+    safeRun(function(){ if (!document.getElementById("page-anomalies").classList.contains("hidden")) renderAnomaliesModule(); }, "Anomalies");
   }
 
   /* ======================================================================
@@ -2496,6 +2518,219 @@ body.license-locked { overflow: hidden; }
   }
 
   wireCompareUI();
+
+  /* ======================================================================
+     DÉTECTION D'ANOMALIES — règles métier sur données SAP
+     ====================================================================== */
+  var ANOMALY_SCATTERED_THRESHOLD = 5;   // article présent dans plus de N bins
+  var ANOMALY_CRITICAL_HU = 50;          // seuil bin surchargé
+  var anomalyState = { list: [], expanded: {} };
+
+  function detectAnomalies(){
+    var out = [];
+
+    // A1 — Bins non routés (section = OTHER) : format d'emplacement inattendu ou zone non configurée
+    var otherBins = [];
+    state.binAgg.forEach(function(agg, key){
+      if (agg.section === "OTHER") otherBins.push({ bin: key, hu: agg.count, articles: agg.materials.size, quantite: agg.qtySum });
+    });
+    out.push({
+      id: "bins-non-routes", title: "Bins non routés (hors zones configurées)",
+      severity: otherBins.length > 0 ? "warning" : "info",
+      count: otherBins.length,
+      description: "Ces bins ne correspondent à aucune zone du wizard. Ajoutez leurs racks/valeurs dans la config pour les rattacher.",
+      rows: otherBins.sort(function(a,b){ return a.bin.localeCompare(b.bin); }),
+      columns: ["bin","hu","articles","quantite"], columnLabels: ["Bin","HU","Articles","Quantité"]
+    });
+
+    // A2 — Bins critiques (HU > seuil)
+    var critical = [];
+    state.binAgg.forEach(function(agg, key){
+      if (agg.count > ANOMALY_CRITICAL_HU) critical.push({ bin: key, section: agg.section, hu: agg.count, articles: agg.materials.size, quantite: agg.qtySum });
+    });
+    out.push({
+      id: "bins-critiques", title: "Bins surchargés (HU > " + ANOMALY_CRITICAL_HU + ")",
+      severity: critical.length > 0 ? "critical" : "info",
+      count: critical.length,
+      description: "Ces bins accumulent un nombre anormal de handling units. À vérifier pour éviter les erreurs d'inventaire.",
+      rows: critical.sort(function(a,b){ return b.hu - a.hu; }),
+      columns: ["bin","section","hu","articles","quantite"], columnLabels: ["Bin","Zone","HU","Articles","Quantité"]
+    });
+
+    // A3 — Articles éclatés (présents dans > N bins)
+    var scattered = [];
+    state.materialAgg.forEach(function(agg, material){
+      if (agg.bins.size > ANOMALY_SCATTERED_THRESHOLD){
+        scattered.push({ article: material, bins: agg.bins.size, hu: agg.count, quantite: agg.qtySum });
+      }
+    });
+    out.push({
+      id: "articles-eclates", title: "Articles éclatés (> " + ANOMALY_SCATTERED_THRESHOLD + " bins)",
+      severity: scattered.length > 0 ? "warning" : "info",
+      count: scattered.length,
+      description: "Ces articles sont dispersés sur beaucoup d'emplacements. Envisagez une consolidation pour améliorer la préparation.",
+      rows: scattered.sort(function(a,b){ return b.bins - a.bins; }),
+      columns: ["article","bins","hu","quantite"], columnLabels: ["Article","Bins","HU","Quantité"]
+    });
+
+    // A4 — Master HU incohérent (même Highest Level HU présent dans plusieurs bins physiques)
+    var masterHuMap = new Map(); // masterHu -> Set<bin>
+    state.allLines.forEach(function(l){
+      if (!l.highestLevelHu) return;
+      if (!masterHuMap.has(l.highestLevelHu)) masterHuMap.set(l.highestLevelHu, new Set());
+      masterHuMap.get(l.highestLevelHu).add(l.bin);
+    });
+    var incoherentHu = [];
+    masterHuMap.forEach(function(bins, mh){
+      if (bins.size > 1) incoherentHu.push({ masterHu: mh, bins: Array.from(bins).join(", "), nb_bins: bins.size });
+    });
+    out.push({
+      id: "master-hu-incoherent", title: "Master HU dans plusieurs bins",
+      severity: incoherentHu.length > 0 ? "critical" : "info",
+      count: incoherentHu.length,
+      description: "Un Highest Level HU (palette maître) ne devrait exister que dans un seul bin. Ces doublons indiquent des mouvements non enregistrés.",
+      rows: incoherentHu.sort(function(a,b){ return b.nb_bins - a.nb_bins; }),
+      columns: ["masterHu","nb_bins","bins"], columnLabels: ["Master HU","Nb Bins","Bins concernés"]
+    });
+
+    // A5 — Lignes sans bin (bin vide dans SAP)
+    var noBin = state.linesWithoutBin.map(function(l){
+      return { article: l.material || "", hu: l.hu || "", batch: l.batch || "", quantite: l.quantity || 0 };
+    });
+    out.push({
+      id: "lignes-sans-bin", title: "Lignes SAP sans Storage Bin",
+      severity: noBin.length > 0 ? "warning" : "info",
+      count: noBin.length,
+      description: "Ces lignes existent dans le fichier SAP mais n'ont pas d'emplacement de stockage. Souvent des HU en transit ou données incomplètes.",
+      rows: noBin,
+      columns: ["article","hu","batch","quantite"], columnLabels: ["Article","HU","Batch","Quantité"]
+    });
+
+    // A6 — Articles sans description
+    var noDesc = [];
+    state.materialAgg.forEach(function(agg, mat){
+      if (!agg.description || !String(agg.description).trim()) noDesc.push({ article: mat, hu: agg.count, bins: agg.bins.size, quantite: agg.qtySum });
+    });
+    out.push({
+      id: "articles-sans-description", title: "Articles sans description",
+      severity: noDesc.length > 0 ? "info" : "info",
+      count: noDesc.length,
+      description: "Ces articles n'ont pas de description dans le fichier SAP. Enrichissez le master data pour améliorer les rapports.",
+      rows: noDesc.sort(function(a,b){ return a.article.localeCompare(b.article); }),
+      columns: ["article","hu","bins","quantite"], columnLabels: ["Article","HU","Bins","Quantité"]
+    });
+
+    // A7 — Articles à quantité totale nulle
+    var zeroQty = [];
+    state.materialAgg.forEach(function(agg, mat){
+      if (agg.qtySum === 0 && agg.count > 0) zeroQty.push({ article: mat, hu: agg.count, bins: agg.bins.size });
+    });
+    out.push({
+      id: "articles-quantite-nulle", title: "Articles à quantité nulle",
+      severity: zeroQty.length > 0 ? "warning" : "info",
+      count: zeroQty.length,
+      description: "Ces articles ont des HU dans SAP mais une quantité totale de 0. À vérifier physiquement.",
+      rows: zeroQty.sort(function(a,b){ return a.article.localeCompare(b.article); }),
+      columns: ["article","hu","bins"], columnLabels: ["Article","HU","Bins"]
+    });
+
+    return out;
+  }
+
+  function anomalySeverityBadge(sev){
+    if (sev === "critical") return '<span style="background:#DC2626; color:#fff; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700;">CRITIQUE</span>';
+    if (sev === "warning")  return '<span style="background:#F37021; color:#fff; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700;">WARNING</span>';
+    return '<span style="background:#94A3B8; color:#fff; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700;">INFO</span>';
+  }
+
+  function renderAnomaliesModule(){
+    var empty = document.getElementById("anomaliesEmpty");
+    var content = document.getElementById("anomaliesContent");
+    if (!empty || !content) return;
+    if (!state.hasData){
+      empty.classList.remove("hidden"); content.classList.add("hidden");
+      return;
+    }
+    empty.classList.add("hidden"); content.classList.remove("hidden");
+
+    var list = detectAnomalies();
+    anomalyState.list = list;
+
+    var critical = list.filter(function(a){ return a.severity === "critical" && a.count > 0; });
+    var warnings = list.filter(function(a){ return a.severity === "warning" && a.count > 0; });
+    var infos = list.filter(function(a){ return a.severity === "info" && a.count > 0; });
+    var totalIssues = list.reduce(function(s,a){ return s + a.count; }, 0);
+
+    document.getElementById("anomaliesSummary").innerHTML =
+      totalIssues === 0
+        ? 'Aucune anomalie détectée — les données semblent cohérentes.'
+        : '<strong>' + totalIssues + '</strong> anomalies détectées sur ' + list.length + ' règles.';
+
+    var kpis = [
+      { label: "Règles critiques", value: critical.length, cls: critical.length > 0 ? "alert" : "good" },
+      { label: "Règles warning", value: warnings.length, cls: warnings.length > 0 ? "alert" : "" },
+      { label: "Règles info", value: infos.length },
+      { label: "Total anomalies", value: totalIssues, cls: totalIssues > 0 ? "alert" : "good" }
+    ];
+    document.getElementById("anomaliesKpiGrid").innerHTML = kpis.map(function(k){
+      return '<div class="kpi-card ' + (k.cls || "") + '"><div class="kv">' + escapeHtml(k.value) + '</div><div class="kl">' + escapeHtml(k.label) + '</div></div>';
+    }).join("");
+
+    var host = document.getElementById("anomaliesCards");
+    host.innerHTML = list.map(function(a){
+      var expanded = !!anomalyState.expanded[a.id];
+      var toggleLabel = expanded ? "Masquer" : "Voir les détails";
+      var badge = anomalySeverityBadge(a.count > 0 ? a.severity : "info");
+      var body = "";
+      if (expanded){
+        if (a.count === 0){
+          body = '<div class="empty-state">Aucune ligne concernée. ✓</div>';
+        } else {
+          var headers = a.columnLabels.map(function(l){ return '<th>' + escapeHtml(l) + '</th>'; }).join("");
+          var rowsHtml = a.rows.slice(0, 300).map(function(r){
+            return '<tr>' + a.columns.map(function(c){ var v = r[c]; return '<td>' + escapeHtml(typeof v === "number" ? formatNum(v) : (v == null ? "" : v)) + '</td>'; }).join("") + '</tr>';
+          }).join("");
+          var truncated = a.rows.length > 300 ? '<div class="page-desc" style="margin-top:6px;">Affichage limité à 300 lignes sur ' + a.rows.length + ' — utilisez l\'export Excel pour la liste complète.</div>' : '';
+          body = '<div class="table-wrap"><table class="data-table"><thead><tr>' + headers + '</tr></thead><tbody>' + rowsHtml + '</tbody></table></div>' + truncated;
+        }
+      }
+      return '<div class="card" data-anomaly-card="' + escapeHtml(a.id) + '">'
+        + '<div class="page-title-row">'
+        + '  <div><h3 style="font-size:14px; color:#1D2240; margin-bottom:4px;">' + badge + ' &nbsp; ' + escapeHtml(a.title) + ' <span style="color:#94A3B8;">(' + a.count + ')</span></h3>'
+        + '    <div class="page-desc" style="margin:0;">' + escapeHtml(a.description) + '</div>'
+        + '  </div>'
+        + '  <div class="btn-row">'
+        + '    <button class="btn btn-outline btn-sm" data-toggle-anomaly="' + escapeHtml(a.id) + '">' + toggleLabel + '</button>'
+        + '  </div>'
+        + '</div>'
+        + body
+        + '</div>';
+    }).join("");
+
+    Array.prototype.forEach.call(host.querySelectorAll("[data-toggle-anomaly]"), function(btn){
+      btn.addEventListener("click", function(){
+        var id = btn.getAttribute("data-toggle-anomaly");
+        anomalyState.expanded[id] = !anomalyState.expanded[id];
+        renderAnomaliesModule();
+      });
+    });
+  }
+
+  function exportAnomaliesExcel(){
+    if (!anomalyState.list.length){ alert("Aucune anomalie à exporter."); return; }
+    var wb = XLSX.utils.book_new();
+    anomalyState.list.forEach(function(a){
+      var rows = [a.columnLabels.slice()];
+      a.rows.forEach(function(r){ rows.push(a.columns.map(function(c){ return r[c] == null ? "" : r[c]; })); });
+      // XLSX limite les noms d'onglet à 31 caractères
+      var sheetName = a.id.length > 31 ? a.id.slice(0, 31) : a.id;
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), sheetName);
+    });
+    XLSX.writeFile(wb, "WarehouseLab_Anomalies.xlsx");
+  }
+
+  var btnExpAnom = document.getElementById("btnExportAnomaliesExcel");
+  if (btnExpAnom) btnExpAnom.addEventListener("click", exportAnomaliesExcel);
 
   /* ======================================================================
      DASHBOARD : KPI + GRAPHIQUES + HEATMAP

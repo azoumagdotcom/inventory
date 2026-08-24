@@ -1121,6 +1121,151 @@ body.license-locked { overflow: hidden; }
 })();
 </script>
 
+<!-- ============ WLAB CONFIG SERVICE (utilitaires pour tout le reste de l'app) ============ -->
+<script>
+(function(){
+  "use strict";
+
+  var CONFIG_KEY = "wlab_config_v1";
+  var raw = null;
+
+  function reload(){
+    try {
+      var s = localStorage.getItem(CONFIG_KEY);
+      raw = s ? JSON.parse(s) : null;
+    } catch(e){ raw = null; }
+    window.WLAB_CONFIG = raw;
+    return raw;
+  }
+
+  function parseList(str){
+    return String(str||"").split(/[,;\s]+/).map(function(s){ return s.trim().toUpperCase(); }).filter(function(s){ return s.length > 0; });
+  }
+
+  function isReady(){ return !!raw; }
+
+  function getCompany(){ return raw && raw.company ? raw.company : { name: "", code: "", email: "", primaryColor: "#F37021" }; }
+  function getOptions(){ return raw && raw.options ? raw.options : {}; }
+  function getSapColumns(){ return raw && raw.sap_columns ? raw.sap_columns : {}; }
+  function getZones(){ return raw && Array.isArray(raw.zones) ? raw.zones : []; }
+  function getStructuredZones(){ return getZones().filter(function(z){ return z.type === "structured"; }); }
+  function getFlatZones(){ return getZones().filter(function(z){ return z.type === "flat"; }); }
+  function getZoneByCode(code){
+    if (!code) return null;
+    var up = String(code).toUpperCase();
+    var zs = getZones();
+    for (var i = 0; i < zs.length; i++) if (String(zs[i].code||"").toUpperCase() === up) return zs[i];
+    return null;
+  }
+
+  // Retourne la liste unique de tous les racks configurés (toutes zones structurées)
+  function getAllRacks(){
+    var set = {};
+    getStructuredZones().forEach(function(z){ parseList(z.racks).forEach(function(r){ set[r] = 1; }); });
+    return Object.keys(set);
+  }
+
+  // Détermine à quelle zone appartient un code bin brut
+  // Retourne : { section: "MP", type: "structured", rack, level, pos, bin } ou
+  //            { section: "TPA", type: "flat", tpa } ou null (bin hors config → géré ailleurs)
+  function classifyBin(binRaw){
+    var raw2 = String(binRaw||"").trim().toUpperCase();
+    if (!raw2) return null;
+
+    // 1) zones plates : match direct sur la liste values
+    var flats = getFlatZones();
+    for (var i = 0; i < flats.length; i++) {
+      var vals = parseList(flats[i].values);
+      if (vals.indexOf(raw2) !== -1) {
+        return { section: String(flats[i].code).toUpperCase(), type: "flat", tpa: raw2, label: flats[i].label || flats[i].code };
+      }
+    }
+
+    // 2) zones structurées : format RACK-NIVEAU-POSITION
+    var parts = raw2.split("-").map(function(p){ return p.trim(); }).filter(function(p){ return p !== ""; });
+    if (parts.length === 3) {
+      var rack = parts[0], levelNum = parseInt(parts[1], 10), posNum = parseInt(parts[2], 10);
+      if (!isNaN(levelNum) && !isNaN(posNum)) {
+        var structured = getStructuredZones();
+        for (var j = 0; j < structured.length; j++) {
+          var z = structured[j];
+          var racks = parseList(z.racks);
+          var levels = parseList(z.levels).map(function(x){ return parseInt(x,10); });
+          if (racks.indexOf(rack) !== -1 && levels.indexOf(levelNum) !== -1 && posNum >= (z.pos_min||1) && posNum <= (z.pos_max||1)) {
+            return {
+              section: String(z.code).toUpperCase(),
+              type: "structured",
+              rack: rack, level: levelNum, pos: posNum,
+              bin: rack + "-" + levelNum + "-" + posNum,
+              label: z.label || z.code
+            };
+          }
+        }
+      }
+    }
+    return null; // hors config
+  }
+
+  // Construit l'univers complet des bins configurés (utilisé par les modules dashboard/inventaire)
+  function buildBinUniverse(){
+    var keys = [];
+    var meta = new Map();
+    getStructuredZones().forEach(function(z){
+      var racks = parseList(z.racks);
+      var levels = parseList(z.levels).map(function(x){ return parseInt(x,10); }).filter(function(x){ return !isNaN(x); });
+      var pmin = z.pos_min || 1, pmax = z.pos_max || pmin;
+      racks.forEach(function(r){
+        levels.forEach(function(l){
+          for (var p = pmin; p <= pmax; p++) {
+            var k = r + "-" + l + "-" + p;
+            keys.push(k);
+            meta.set(k, { rack: r, level: l, pos: p, section: String(z.code).toUpperCase() });
+          }
+        });
+      });
+    });
+    return { keys: keys, meta: meta };
+  }
+
+  window.WLAB = window.WLAB || {};
+  window.WLAB.config = {
+    reload: reload,
+    isReady: isReady,
+    get raw(){ return raw; },
+    getCompany: getCompany,
+    getOptions: getOptions,
+    getSapColumns: getSapColumns,
+    getZones: getZones,
+    getStructuredZones: getStructuredZones,
+    getFlatZones: getFlatZones,
+    getZoneByCode: getZoneByCode,
+    getAllRacks: getAllRacks,
+    classifyBin: classifyBin,
+    buildBinUniverse: buildBinUniverse
+  };
+
+  // Boot : charge la config maintenant si présente
+  reload();
+
+  // Signal les autres modules quand la config est prête ou change
+  function fireReady(){
+    try { document.dispatchEvent(new CustomEvent("wlab:config-ready", { detail: raw })); } catch(e){}
+  }
+  if (raw) {
+    // config déjà en localStorage → prête tout de suite
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", fireReady);
+    } else {
+      setTimeout(fireReady, 0);
+    }
+  }
+  document.addEventListener("wlab:configured", function(){
+    reload();
+    fireReady();
+  });
+})();
+</script>
+
 
 <div class="app-shell" style="display:none">
 
@@ -1153,6 +1298,11 @@ body.license-locked { overflow: hidden; }
         <div class="license-info-label">LICENCE</div>
         <div class="license-info-customer" id="licenseCustomer">—</div>
         <button type="button" class="license-deactivate" id="btnDeactivateLicense">Désactiver</button>
+      </div>
+      <div class="license-info-box" style="margin-top:8px;">
+        <div class="license-info-label">CONFIGURATION</div>
+        <button type="button" class="license-deactivate" id="btnReopenWizard">Modifier ma configuration</button>
+        <button type="button" class="license-deactivate" id="btnResetConfig" style="margin-top:4px;">Réinitialiser (repartir de zéro)</button>
       </div>
       <strong>AZOUMAG © 2026</strong><br>
       The Ultimate Online Solutions<br>
@@ -1281,10 +1431,7 @@ body.license-locked { overflow: hidden; }
         </div>
 
         <div class="inv-tabs no-print" id="tabsBar">
-          <button class="inv-tab-btn active" data-tab="MP">MP</button>
-          <button class="inv-tab-btn" data-tab="PF">PF</button>
-          <button class="inv-tab-btn" data-tab="OBD">TPA (OBD)</button>
-          <button class="inv-tab-btn" data-tab="OTHER">AUTRES</button>
+          <div id="invTabButtons" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
           <div class="btn-row" style="margin-left:auto;">
             <button class="btn btn-navy btn-sm" id="btnExportPdf">Export PDF</button>
             <button class="btn btn-outline btn-sm" id="btnPrint">Print</button>
@@ -1292,42 +1439,7 @@ body.license-locked { overflow: hidden; }
           </div>
         </div>
 
-        <section data-view="MP" id="viewMP">
-          <div class="print-header"><span>Date : ______________________</span><span>Inventoriste : ______________________</span><span>Equipe : ______________________</span></div>
-          <div class="legend no-print">
-            <span><i style="background:#16A34A;"></i> HU = 0</span><span><i style="background:#DBEAFE;"></i> HU 1–20</span>
-            <span><i style="background:#F37021;"></i> HU 21–50</span><span><i style="background:#DC2626;"></i> HU &gt; 50</span>
-          </div>
-          <div id="rackContainerMP"></div>
-          <div class="print-footer"></div>
-        </section>
-
-        <section data-view="PF" id="viewPF" class="hidden">
-          <div class="print-header"><span>Date : ______________________</span><span>Inventoriste : ______________________</span><span>Equipe : ______________________</span></div>
-          <div class="legend no-print">
-            <span><i style="background:#16A34A;"></i> HU = 0</span><span><i style="background:#DBEAFE;"></i> HU 1–20</span>
-            <span><i style="background:#F37021;"></i> HU 21–50</span><span><i style="background:#DC2626;"></i> HU &gt; 50</span>
-          </div>
-          <div id="rackContainerPF"></div>
-          <div class="print-footer"></div>
-        </section>
-
-        <section data-view="OBD" id="viewOBD" class="hidden">
-          <div class="print-header"><span>Date : ______________________</span><span>Inventoriste : ______________________</span><span>Equipe : ______________________</span></div>
-          <div class="card print-page">
-            <table class="data-table" id="obdTable"><thead><tr><th>TPA</th><th>Article</th><th>Quantité Totale</th></tr></thead><tbody id="obdTableBody"></tbody></table>
-            <div class="print-footer"></div>
-          </div>
-        </section>
-
-        <section data-view="OTHER" id="viewOTHER" class="hidden">
-          <div class="print-header"><span>Date : ______________________</span><span>Inventoriste : ______________________</span><span>Equipe : ______________________</span></div>
-          <div class="card print-page">
-            <div class="detail-sub no-print">Emplacements hors structure MP/PF/OBD (bobines, zones diverses...). Cliquez une ligne pour le détail.</div>
-            <table class="data-table" id="otherTable"><thead><tr><th>Bin</th><th>HU</th><th>ART</th><th>Batchs</th><th>Master HU</th><th>Quantité Totale</th></tr></thead><tbody id="otherTableBody"></tbody></table>
-            <div class="print-footer"></div>
-          </div>
-        </section>
+        <div id="invViewsHost"></div>
 
         <section id="searchResultView" class="hidden">
           <div class="print-header"><span>Date : ______________________</span><span>Inventoriste : ______________________</span><span>Equipe : ______________________</span></div>
@@ -1540,27 +1652,124 @@ body.license-locked { overflow: hidden; }
   "use strict";
 
   /* ======================================================================
-     CONFIGURATION DES RACKS (structure MP/PF)
+     STRUCTURE ENTREPÔT — chargée dynamiquement depuis WLAB.config
      ====================================================================== */
-  var MP_RACKS = ["A","B0","B1","C0","C1","D0","D1","E0","E1","F0","F1","G0","G1","H0","H1","I"];
-  var MP_LEVELS = [4,3,2,1,0];
-  var MP_POSITIONS = 15;
+  var STRUCT_ZONES = [];   // [{ code, label, racks:[], levels:[], pos_min, pos_max }]
+  var FLAT_ZONES   = [];   // [{ code, label, values:[] }]
+  var ALL_RACKS_LIST = []; // union des racks des zones structurées
+  var TAB_CODES = [];      // ordre des onglets inventaire (zones + "OTHER")
+  var BIN_UNIVERSE = { keys: [], meta: new Map() };
 
-  var PF_RACKS = ["J","K0","K1","L0","L1","M0","M1","N"];
-  var PF_LEVELS = [3,2,1,0];
-  var PF_POSITIONS = 21;
-
-  var OBD_TPA = ["TPA1","TPA2","TPA3","TPA4","TPA5","TPA6"];
-
-  function buildBinUniverse(){
-    var keys = []; var meta = new Map();
-    MP_RACKS.forEach(function(r){ MP_LEVELS.forEach(function(l){ for (var p=1;p<=MP_POSITIONS;p++){ var k=r+"-"+l+"-"+p; keys.push(k); meta.set(k,{rack:r,level:l,pos:p,section:"MP"}); } }); });
-    PF_RACKS.forEach(function(r){ PF_LEVELS.forEach(function(l){ for (var p=1;p<=PF_POSITIONS;p++){ var k=r+"-"+l+"-"+p; keys.push(k); meta.set(k,{rack:r,level:l,pos:p,section:"PF"}); } }); });
-    return { keys: keys, meta: meta };
+  function _wlParseList(str){
+    return String(str||"").split(/[,;\s]+/).map(function(s){ return s.trim().toUpperCase(); }).filter(function(s){ return s.length > 0; });
   }
-  var BIN_UNIVERSE = buildBinUniverse();
 
-  var COLUMN_KEYWORDS = {
+  function loadZonesFromConfig(){
+    if (!window.WLAB || !window.WLAB.config) return false;
+    STRUCT_ZONES = window.WLAB.config.getStructuredZones().map(function(z){
+      return {
+        code: String(z.code||"").toUpperCase(),
+        label: z.label || z.code,
+        racks: _wlParseList(z.racks),
+        levels: _wlParseList(z.levels).map(function(x){ return parseInt(x,10); }).filter(function(x){ return !isNaN(x); }),
+        pos_min: z.pos_min || 1,
+        pos_max: z.pos_max || 1
+      };
+    });
+    FLAT_ZONES = window.WLAB.config.getFlatZones().map(function(z){
+      return { code: String(z.code||"").toUpperCase(), label: z.label || z.code, values: _wlParseList(z.values) };
+    });
+    ALL_RACKS_LIST = window.WLAB.config.getAllRacks();
+    BIN_UNIVERSE = window.WLAB.config.buildBinUniverse();
+    return true;
+  }
+
+  // Retourne la zone structurée à laquelle appartient un rack donné (ou null)
+  function getZoneForRack(rack){
+    var r = String(rack||"").toUpperCase();
+    for (var i = 0; i < STRUCT_ZONES.length; i++) if (STRUCT_ZONES[i].racks.indexOf(r) !== -1) return STRUCT_ZONES[i];
+    return null;
+  }
+  function getZoneByCode(code){
+    var c = String(code||"").toUpperCase();
+    for (var i = 0; i < STRUCT_ZONES.length; i++) if (STRUCT_ZONES[i].code === c) return STRUCT_ZONES[i];
+    for (var j = 0; j < FLAT_ZONES.length; j++)   if (FLAT_ZONES[j].code === c)   return FLAT_ZONES[j];
+    return null;
+  }
+
+  loadZonesFromConfig();
+  applyBranding();
+  wireConfigButtons();
+  if (typeof renderInvTabsAndViews === "function") renderInvTabsAndViews();
+  document.addEventListener("wlab:config-ready", function(){
+    loadZonesFromConfig();
+    applyBranding();
+    if (typeof renderInvTabsAndViews === "function") renderInvTabsAndViews();
+    if (window.__wlabAppRefresh) window.__wlabAppRefresh();
+  });
+
+  function wireConfigButtons(){
+    function wire(){
+      var reopen = document.getElementById("btnReopenWizard");
+      var reset = document.getElementById("btnResetConfig");
+      if (reopen && !reopen.dataset.wired) {
+        reopen.dataset.wired = "1";
+        reopen.addEventListener("click", function(){
+          if (window.WLAB_WIZARD) window.WLAB_WIZARD.openReconfigure();
+        });
+      }
+      if (reset && !reset.dataset.wired) {
+        reset.dataset.wired = "1";
+        reset.addEventListener("click", function(){
+          if (confirm("Réinitialiser toute la configuration ? Les données importées et l'auto-save seront perdus.")) {
+            if (window.WLAB_WIZARD) window.WLAB_WIZARD.resetConfig();
+          }
+        });
+      }
+    }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", wire);
+    } else {
+      wire();
+    }
+  }
+
+  function applyBranding(){
+    if (!window.WLAB || !window.WLAB.config) return;
+    var c = window.WLAB.config.getCompany();
+    var name = (c.name || "").trim();
+    var code = (c.code || "").trim().toUpperCase();
+    var mark = code ? code.slice(0, 2) : (name ? name.slice(0, 2).toUpperCase() : "WL");
+
+    var t1El = document.querySelector(".sidebar .brand-text .t1");
+    var t2El = document.querySelector(".sidebar .brand-text .t2");
+    var markEl = document.querySelector(".sidebar .brand-mark");
+    if (t1El) t1El.textContent = name || "Warehouse Lab";
+    if (t2El) t2El.textContent = name ? "Warehouse Lab · by AZOUMAG" : "by AZOUMAG";
+    if (markEl) markEl.textContent = mark;
+
+    // Titre de l'onglet navigateur
+    var title = name ? (name + " · Warehouse Lab") : "Warehouse Lab — by AZOUMAG";
+    document.title = title;
+
+    // Couleur primaire (variable CSS injectée si personnalisée)
+    var color = (c.primaryColor || "#F37021").trim();
+    if (color && color.toUpperCase() !== "#F37021") {
+      var styleId = "wlabBrandColor";
+      var existing = document.getElementById(styleId);
+      if (existing) existing.remove();
+      var st = document.createElement("style");
+      st.id = styleId;
+      st.textContent = "" +
+        ".brand-mark, .wizard-step.active .num, .kpi-card .icon-wrap, .btn-primary { background: " + color + " !important; }" +
+        ".nav-link.active { border-left-color: " + color + " !important; }" +
+        "a, .link { color: " + color + "; }";
+      document.head.appendChild(st);
+    }
+  }
+
+  // Défauts SAP standards — préservés en fallback même si le client ne les a pas configurés
+  var COLUMN_KEYWORDS_DEFAULTS = {
     bin: ["storage bin","storagebin","bin","lgpla"],
     material: ["material number","material","article","product"],
     quantity: ["available stock","quantity","qty","stock"],
@@ -1569,6 +1778,24 @@ body.license-locked { overflow: hidden; }
     hu: ["handling unit","hu number","huid","hu"],
     description: ["product short description","short description","material description","description","desc"]
   };
+  // Mapping snake_case (wizard) → camelCase (code)
+  var COL_KEY_MAP = { bin:"bin", material:"material", quantity:"quantity", batch:"batch", hu:"hu", highest_level_hu:"highestLevelHu", description:"description" };
+
+  function getColumnKeywords(){
+    var cfgCols = (window.WLAB && window.WLAB.config) ? window.WLAB.config.getSapColumns() : {};
+    var out = {};
+    Object.keys(COLUMN_KEYWORDS_DEFAULTS).forEach(function(k){ out[k] = COLUMN_KEYWORDS_DEFAULTS[k].slice(); });
+    Object.keys(cfgCols).forEach(function(snakeKey){
+      var camelKey = COL_KEY_MAP[snakeKey] || snakeKey;
+      if (!out[camelKey]) out[camelKey] = [];
+      var userLabel = String(cfgCols[snakeKey]||"").trim();
+      if (userLabel && out[camelKey].indexOf(userLabel.toLowerCase()) === -1) {
+        // On préfixe la liste : la détection cherche d'abord le nom configuré par le client
+        out[camelKey].unshift(userLabel.toLowerCase());
+      }
+    });
+    return out;
+  }
   var REQUIRED_FIELDS = ["bin","material","quantity","batch","highestLevelHu","hu"];
   var DETECTION_ORDER = ["bin","material","quantity","batch","highestLevelHu","hu","description"];
   var FIELD_LABELS = { bin:"Storage Bin", material:"Material", quantity:"Quantity", batch:"Batch", hu:"HU", highestLevelHu:"Highest Level HU", description:"Description (optionnel)" };
@@ -1581,9 +1808,9 @@ body.license-locked { overflow: hidden; }
     fileName: "", fileSignature: "",
     allLines: [], linesWithoutBin: [],
     binIndex: new Map(), materialIndex: new Map(),
-    binAgg: new Map(), materialAgg: new Map(), obdData: new Map(),
+    binAgg: new Map(), materialAgg: new Map(), flatData: new Map(),
     binKeyList: [], articleList: [], ignoredLines: 0,
-    activeInvTab: "MP",
+    activeInvTab: null,
     gapCounts: {},  // bin -> compté (persisté localStorage)
     hasData: false
   };
@@ -1724,7 +1951,7 @@ body.license-locked { overflow: hidden; }
       var mapping = { bin:null, material:null, quantity:null, batch:null, highestLevelHu:null, hu:null, description:null };
       var used = [];
       DETECTION_ORDER.forEach(function(field){
-        var idx = detectColumn(headers, COLUMN_KEYWORDS[field], used);
+        var idx = detectColumn(headers, getColumnKeywords()[field], used);
         mapping[field] = idx;
         if (idx !== null) used.push(idx);
       });
@@ -1804,6 +2031,7 @@ body.license-locked { overflow: hidden; }
     processData();
     state.hasData = true;
     saveImportToHistory();
+    wlabSaveSession();
     document.getElementById("previewCard").classList.add("hidden");
     fileInput.value = "";
     pendingImport = null;
@@ -1811,23 +2039,68 @@ body.license-locked { overflow: hidden; }
     goToPage("dashboard");
   });
 
+  /* ---- Auto-sauvegarde de la session (dernier import) ---- */
+  var WLAB_SESSION_KEY = "wlab_session_v1";
+  var WLAB_SESSION_MAX_BYTES = 5 * 1024 * 1024;
+  function wlabSaveSession(){
+    try {
+      var payload = {
+        headers: state.headers,
+        rows: state.rows,
+        mapping: state.mapping,
+        fileName: state.fileName,
+        fileSignature: state.fileSignature,
+        savedAt: new Date().toISOString()
+      };
+      var str = JSON.stringify(payload);
+      if (str.length > WLAB_SESSION_MAX_BYTES){
+        console.warn("[WLAB] Session trop volumineuse pour l'auto-sauvegarde (" + str.length + " octets) — ignorée.");
+        return;
+      }
+      localStorage.setItem(WLAB_SESSION_KEY, str);
+    } catch(e){ console.warn("[WLAB] wlabSaveSession failed:", e); }
+  }
+  function wlabClearSession(){ try { localStorage.removeItem(WLAB_SESSION_KEY); } catch(e){} }
+  function wlabLoadSession(){
+    try {
+      var str = localStorage.getItem(WLAB_SESSION_KEY);
+      if (!str) return false;
+      var p = JSON.parse(str);
+      if (!p || !Array.isArray(p.rows) || !Array.isArray(p.headers) || !p.mapping) return false;
+      state.headers = p.headers; state.rows = p.rows;
+      state.mapping = p.mapping;
+      state.fileName = p.fileName || "";
+      state.fileSignature = p.fileSignature || "";
+      processData();
+      state.hasData = true;
+      return { fileName: state.fileName, rows: state.rows.length, savedAt: p.savedAt };
+    } catch(e){ console.warn("[WLAB] wlabLoadSession failed:", e); return false; }
+  }
+
   /* ======================================================================
      TRAITEMENT DES DONNEES
      ====================================================================== */
   function parseBinCode(binRaw){
     var raw = String(binRaw || "").trim().toUpperCase();
     if (!raw) return null; // Storage Bin vide -> ligne ignorée
-    if (OBD_TPA.indexOf(raw) !== -1) return { section: "OBD", tpa: raw };
 
+    // 1) Zones plates (match direct sur les valeurs)
+    for (var i = 0; i < FLAT_ZONES.length; i++) {
+      if (FLAT_ZONES[i].values.indexOf(raw) !== -1) {
+        return { section: FLAT_ZONES[i].code, tpa: raw };
+      }
+    }
+
+    // 2) Zones structurées : format RACK-NIVEAU-POSITION
     var parts = raw.split("-").map(function(p){ return p.trim(); }).filter(function(p){ return p !== ""; });
-    if (parts.length === 3){
-      var rack = parts[0]; var levelNum = parseInt(parts[1],10); var posNum = parseInt(parts[2],10);
-      if (!isNaN(levelNum) && !isNaN(posNum)){
-        if (MP_RACKS.indexOf(rack)!==-1 && MP_LEVELS.indexOf(levelNum)!==-1 && posNum>=1 && posNum<=MP_POSITIONS){
-          return { section:"MP", rack:rack, level:levelNum, pos:posNum, bin: rack+"-"+levelNum+"-"+posNum };
-        }
-        if (PF_RACKS.indexOf(rack)!==-1 && PF_LEVELS.indexOf(levelNum)!==-1 && posNum>=1 && posNum<=PF_POSITIONS){
-          return { section:"PF", rack:rack, level:levelNum, pos:posNum, bin: rack+"-"+levelNum+"-"+posNum };
+    if (parts.length === 3) {
+      var rack = parts[0], levelNum = parseInt(parts[1],10), posNum = parseInt(parts[2],10);
+      if (!isNaN(levelNum) && !isNaN(posNum)) {
+        for (var j = 0; j < STRUCT_ZONES.length; j++) {
+          var z = STRUCT_ZONES[j];
+          if (z.racks.indexOf(rack) !== -1 && z.levels.indexOf(levelNum) !== -1 && posNum >= z.pos_min && posNum <= z.pos_max) {
+            return { section: z.code, rack: rack, level: levelNum, pos: posNum, bin: rack+"-"+levelNum+"-"+posNum };
+          }
         }
       }
     }
@@ -1837,7 +2110,7 @@ body.license-locked { overflow: hidden; }
   function processData(){
     state.allLines = []; state.linesWithoutBin = [];
     state.binIndex = new Map(); state.materialIndex = new Map();
-    state.binAgg = new Map(); state.materialAgg = new Map(); state.obdData = new Map();
+    state.binAgg = new Map(); state.materialAgg = new Map(); state.flatData = new Map();
     state.ignoredLines = 0;
 
     var m = state.mapping; var hasDescription = m.description !== null;
@@ -1860,10 +2133,13 @@ body.license-locked { overflow: hidden; }
         return;
       }
 
-      if (parsed.section === "OBD"){
+      if (parsed.tpa !== undefined){
+        var zCode = parsed.section;
+        if (!state.flatData.has(zCode)) state.flatData.set(zCode, new Map());
+        var zMap = state.flatData.get(zCode);
         var key = parsed.tpa + "|" + material;
-        if (!state.obdData.has(key)) state.obdData.set(key, { tpa: parsed.tpa, material: material, qty: 0 });
-        state.obdData.get(key).qty += qty;
+        if (!zMap.has(key)) zMap.set(key, { tpa: parsed.tpa, material: material, qty: 0 });
+        zMap.get(key).qty += qty;
         return;
       }
 
@@ -1959,7 +2235,8 @@ body.license-locked { overflow: hidden; }
       if (entry.section === "OTHER") binsAutres++;
     });
     var totalBins = BIN_UNIVERSE.keys.length;
-    var totalZones = zonesOccupees.size + (state.obdData.size ? 1 : 0) + (binsAutres ? 1 : 0);
+    var flatZonesUsed = 0; state.flatData.forEach(function(m){ if (m.size) flatZonesUsed++; });
+    var totalZones = zonesOccupees.size + flatZonesUsed + (binsAutres ? 1 : 0);
     var gapStats = computeGapStats();
     var conformite = gapStats.countedTotal > 0 ? Math.round((gapStats.zero / gapStats.countedTotal) * 100) : 100;
 
@@ -2004,7 +2281,7 @@ body.license-locked { overflow: hidden; }
 
   function drawAllCharts(stats, chartTextColor){
     // --- Répartition par rack (HU) ---
-    var allRacks = MP_RACKS.concat(PF_RACKS);
+    var allRacks = ALL_RACKS_LIST.slice();
     var rackValues = allRacks.map(function(r){
       var sum = 0;
       state.binAgg.forEach(function(entry){ if (entry.rack === r) sum += entry.count; });
@@ -2015,22 +2292,42 @@ body.license-locked { overflow: hidden; }
     chartRack = new Chart(ctxRack, { type: "bar", data: { labels: allRacks, datasets: [{ label:"HU", data: rackValues, backgroundColor:"#F37021" }] },
       options: { responsive:true, plugins:{ legend:{display:false} }, scales:{ x:{ticks:{color:chartTextColor}}, y:{ticks:{color:chartTextColor}} } } });
 
-    // --- MP/PF/TPA/Autres pie ---
-    var sumMp=0, sumPf=0, sumOther=0;
-    state.binAgg.forEach(function(entry){ if (entry.section==="MP") sumMp+=entry.count; else if (entry.section==="PF") sumPf+=entry.count; else if (entry.section==="OTHER") sumOther+=entry.count; });
-    var sumTpa = 0; state.obdData.forEach(function(v){ sumTpa += v.qty; });
+    // --- Répartition par zone (pie: HU) ---
+    var zoneLabels = [], zoneHu = [], zoneQty = [], zoneColors = [];
+    var palette = ["#1D2240","#F37021","#16A34A","#DC2626","#0EA5E9","#A855F7","#F59E0B","#059669"];
+    var paletteIdx = 0;
+    var huByZone = {}, qtyByZone = {};
+    state.binAgg.forEach(function(entry){
+      huByZone[entry.section] = (huByZone[entry.section]||0) + entry.count;
+      qtyByZone[entry.section] = (qtyByZone[entry.section]||0) + entry.qtySum;
+    });
+    STRUCT_ZONES.forEach(function(z){
+      zoneLabels.push(z.label || z.code);
+      zoneHu.push(huByZone[z.code] || 0);
+      zoneQty.push(qtyByZone[z.code] || 0);
+      zoneColors.push(palette[paletteIdx++ % palette.length]);
+    });
+    FLAT_ZONES.forEach(function(z){
+      var m = state.flatData.get(z.code); var sum = 0;
+      if (m) m.forEach(function(v){ sum += v.qty; });
+      zoneLabels.push(z.label || z.code);
+      zoneHu.push(m ? m.size : 0);
+      zoneQty.push(sum);
+      zoneColors.push(palette[paletteIdx++ % palette.length]);
+    });
+    zoneLabels.push("Autres");
+    zoneHu.push(huByZone["OTHER"] || 0);
+    zoneQty.push(qtyByZone["OTHER"] || 0);
+    zoneColors.push("#94A3B8");
+
     var ctxSection = document.getElementById("chartSection").getContext("2d");
     if (chartSection) chartSection.destroy();
-    chartSection = new Chart(ctxSection, { type:"pie", data:{ labels:["MP","PF","TPA (OBD)","Autres"], datasets:[{ data:[sumMp,sumPf,sumTpa,sumOther], backgroundColor:["#1D2240","#F37021","#16A34A","#DC2626"] }] },
+    chartSection = new Chart(ctxSection, { type:"pie", data:{ labels: zoneLabels, datasets:[{ data: zoneHu, backgroundColor: zoneColors }] },
       options:{ responsive:true, plugins:{ legend:{ position:"bottom", labels:{color:chartTextColor} } } } });
 
-    // --- Stock (quantité) par zone ---
-    var qtyMp=0, qtyPf=0, qtyOther=0;
-    state.binAgg.forEach(function(entry){ if (entry.section==="MP") qtyMp+=entry.qtySum; else if (entry.section==="PF") qtyPf+=entry.qtySum; else if (entry.section==="OTHER") qtyOther+=entry.qtySum; });
-    var qtyTpa = 0; state.obdData.forEach(function(v){ qtyTpa += v.qty; });
     var ctxZone = document.getElementById("chartZone").getContext("2d");
     if (chartZone) chartZone.destroy();
-    chartZone = new Chart(ctxZone, { type:"bar", data:{ labels:["MP","PF","TPA (OBD)","Autres"], datasets:[{ label:"Quantité", data:[qtyMp,qtyPf,qtyTpa,qtyOther], backgroundColor:"#1D2240" }] },
+    chartZone = new Chart(ctxZone, { type:"bar", data:{ labels: zoneLabels, datasets:[{ label:"Quantité", data: zoneQty, backgroundColor:"#1D2240" }] },
       options:{ responsive:true, indexAxis:"y", plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:chartTextColor}}, y:{ticks:{color:chartTextColor}} } } });
 
     // --- Occupation des bins (doughnut : vides / occupés non-critiques / critiques) ---
@@ -2091,12 +2388,12 @@ body.license-locked { overflow: hidden; }
   function renderHeatmap(){
     var hmContainer = document.getElementById("heatmapContainer");
     var html = "";
-    [ {racks:MP_RACKS, levels:MP_LEVELS, positions:MP_POSITIONS}, {racks:PF_RACKS, levels:PF_LEVELS, positions:PF_POSITIONS} ].forEach(function(group){
-      group.racks.forEach(function(rack){
+    STRUCT_ZONES.forEach(function(z){
+      z.racks.forEach(function(rack){
         html += '<div class="heatmap-row"><div class="heatmap-rack-label">' + escapeHtml(rack) + '</div>';
-        group.levels.forEach(function(level){
+        z.levels.forEach(function(level){
           var sum = 0, cnt = 0;
-          for (var p=1;p<=group.positions;p++){
+          for (var p = z.pos_min; p <= z.pos_max; p++){
             var entry = state.binAgg.get(rack+"-"+level+"-"+p);
             sum += entry ? entry.count : 0; cnt++;
           }
@@ -2121,19 +2418,61 @@ body.license-locked { overflow: hidden; }
       '<div class="bin-code">' + escapeHtml(binKey) + '</div><div class="bin-hu-big">' + hu + '</div><div class="bin-art">ART: ' + art + '</div></div>';
   }
 
-  function renderRacks(section){
-    var racks = section==="MP" ? MP_RACKS : PF_RACKS;
-    var levels = section==="MP" ? MP_LEVELS : PF_LEVELS;
-    var positions = section==="MP" ? MP_POSITIONS : PF_POSITIONS;
-    var container = document.getElementById(section==="MP" ? "rackContainerMP" : "rackContainerPF");
-    var racksPerPage = section==="MP" ? 4 : 3;
+  function _safeId(code){ return String(code||"").replace(/[^A-Z0-9_]/gi,"_").toUpperCase(); }
+  function zoneViewId(code){ return "zoneView_" + _safeId(code); }
+  function zoneRackContainerId(code){ return "rackContainer_" + _safeId(code); }
+  function zoneFlatTbodyId(code){ return "flatTbody_" + _safeId(code); }
+
+  function renderInvTabsAndViews(){
+    var tabsEl = document.getElementById("invTabButtons");
+    var viewsEl = document.getElementById("invViewsHost");
+    if (!tabsEl || !viewsEl) return;
+    var legendHtml = '<div class="legend no-print"><span><i style="background:#16A34A;"></i> HU = 0</span><span><i style="background:#DBEAFE;"></i> HU 1–20</span><span><i style="background:#F37021;"></i> HU 21–50</span><span><i style="background:#DC2626;"></i> HU &gt; 50</span></div>';
+    var headerHtml = '<div class="print-header"><span>Date : ______________________</span><span>Inventoriste : ______________________</span><span>Equipe : ______________________</span></div>';
+    var footerHtml = '<div class="print-footer"></div>';
+
+    var tabsHtml = "", viewsHtml = "", codes = [];
+    STRUCT_ZONES.forEach(function(z){
+      codes.push(z.code);
+      tabsHtml += '<button class="inv-tab-btn" data-tab="'+escapeHtml(z.code)+'">'+escapeHtml(z.label||z.code)+'</button>';
+      viewsHtml += '<section data-view="'+escapeHtml(z.code)+'" id="'+zoneViewId(z.code)+'" class="hidden">'+headerHtml+legendHtml+'<div id="'+zoneRackContainerId(z.code)+'"></div>'+footerHtml+'</section>';
+    });
+    FLAT_ZONES.forEach(function(z){
+      codes.push(z.code);
+      var head1 = escapeHtml(z.label || z.code);
+      tabsHtml += '<button class="inv-tab-btn" data-tab="'+escapeHtml(z.code)+'">'+escapeHtml(z.label||z.code)+'</button>';
+      viewsHtml += '<section data-view="'+escapeHtml(z.code)+'" id="'+zoneViewId(z.code)+'" class="hidden">'+headerHtml+'<div class="card print-page"><table class="data-table"><thead><tr><th>'+head1+'</th><th>Article</th><th>Quantité Totale</th></tr></thead><tbody id="'+zoneFlatTbodyId(z.code)+'"></tbody></table>'+footerHtml+'</div></section>';
+    });
+    codes.push("OTHER");
+    tabsHtml += '<button class="inv-tab-btn" data-tab="OTHER">AUTRES</button>';
+    viewsHtml += '<section data-view="OTHER" id="'+zoneViewId("OTHER")+'" class="hidden">'+headerHtml+'<div class="card print-page"><div class="detail-sub no-print">Emplacements hors des zones configurées. Cliquez une ligne pour le détail.</div><table class="data-table"><thead><tr><th>Bin</th><th>HU</th><th>ART</th><th>Batchs</th><th>Master HU</th><th>Quantité Totale</th></tr></thead><tbody id="otherTableBody"></tbody></table>'+footerHtml+'</div></section>';
+
+    tabsEl.innerHTML = tabsHtml;
+    viewsEl.innerHTML = viewsHtml;
+    TAB_CODES = codes;
+    Array.prototype.forEach.call(tabsEl.querySelectorAll(".inv-tab-btn"), function(btn){
+      btn.addEventListener("click", function(){
+        if (typeof clearSearchInputs === "function") clearSearchInputs();
+        switchInvTab(btn.getAttribute("data-tab"));
+      });
+    });
+  }
+
+  function renderRacks(zoneCode){
+    var z = getZoneByCode(zoneCode);
+    if (!z || !z.racks) return;
+    var racks = z.racks;
+    var levels = z.levels;
+    var container = document.getElementById(zoneRackContainerId(zoneCode));
+    if (!container) return;
+    var racksPerPage = z.racks.length >= 8 ? 4 : 3;
     var html = "";
     racks.forEach(function(rack, ri){
       if (ri % racksPerPage === 0){ if (ri>0) html += "</div>"; html += '<div class="print-page">'; }
       html += '<div class="rack-block" data-rack="' + escapeHtml(rack) + '"><div class="rack-title">RACK ' + escapeHtml(rack) + '</div>';
       levels.forEach(function(level){
         html += '<div class="level-row"><div class="level-label">Niveau ' + level + '</div><div class="level-cells">';
-        for (var p=1;p<=positions;p++) html += binCellHtml(rack+"-"+level+"-"+p);
+        for (var p = z.pos_min; p <= z.pos_max; p++) html += binCellHtml(rack+"-"+level+"-"+p);
         html += '</div></div>';
       });
       html += '</div>';
@@ -2145,15 +2484,21 @@ body.license-locked { overflow: hidden; }
     });
   }
 
-  function renderObd(){
-    var tbody = document.getElementById("obdTableBody"); tbody.innerHTML = "";
-    var rowsArr = Array.from(state.obdData.values()).sort(function(a,b){ if (a.tpa!==b.tpa) return a.tpa.localeCompare(b.tpa); return a.material.localeCompare(b.material); });
-    if (!rowsArr.length){ tbody.innerHTML = '<tr><td colspan="3" class="empty-state">Aucune donnée OBD (TPA1–TPA6) détectée</td></tr>'; return; }
+  function renderFlatZone(zoneCode){
+    var tbody = document.getElementById(zoneFlatTbodyId(zoneCode));
+    if (!tbody) return;
+    tbody.innerHTML = "";
+    var m = state.flatData.get(zoneCode);
+    var rowsArr = m ? Array.from(m.values()) : [];
+    rowsArr.sort(function(a,b){ if (a.tpa!==b.tpa) return a.tpa.localeCompare(b.tpa); return a.material.localeCompare(b.material); });
+    if (!rowsArr.length){ tbody.innerHTML = '<tr><td colspan="3" class="empty-state">Aucune donnée détectée pour cette zone</td></tr>'; return; }
     rowsArr.forEach(function(r){ var tr=document.createElement("tr"); tr.innerHTML = '<td>'+escapeHtml(r.tpa)+'</td><td>'+escapeHtml(r.material)+'</td><td>'+formatNum(r.qty)+'</td>'; tbody.appendChild(tr); });
   }
 
   function renderOther(){
-    var tbody = document.getElementById("otherTableBody"); tbody.innerHTML = "";
+    var tbody = document.getElementById("otherTableBody");
+    if (!tbody) return;
+    tbody.innerHTML = "";
     var entries = []; state.binAgg.forEach(function(agg,key){ if (agg.section==="OTHER") entries.push([key,agg]); });
     entries.sort(function(a,b){ return a[0].localeCompare(b[0]); });
     if (!entries.length){ tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Aucun bin "Autres" détecté</td></tr>'; return; }
@@ -2169,43 +2514,67 @@ body.license-locked { overflow: hidden; }
     if (!state.hasData){ document.getElementById("inventoryEmpty").classList.remove("hidden"); document.getElementById("inventoryContent").classList.add("hidden"); return; }
     document.getElementById("inventoryEmpty").classList.add("hidden");
     document.getElementById("inventoryContent").classList.remove("hidden");
-    renderRacks("MP"); renderRacks("PF"); renderObd(); renderOther();
+    STRUCT_ZONES.forEach(function(z){ renderRacks(z.code); });
+    FLAT_ZONES.forEach(function(z){ renderFlatZone(z.code); });
+    renderOther();
 
-    // Diagnostic : compter les lignes par section pour ouvrir automatiquement l'onglet qui contient réellement des données
-    var sumMp=0, sumPf=0, sumOther=0;
-    state.binAgg.forEach(function(entry){ if (entry.section==="MP") sumMp+=entry.count; else if (entry.section==="PF") sumPf+=entry.count; else if (entry.section==="OTHER") sumOther+=entry.count; });
-    var sumObd = state.obdData.size;
+    var huByZone = {};
+    state.binAgg.forEach(function(entry){ huByZone[entry.section] = (huByZone[entry.section]||0) + entry.count; });
+    var flatHuByZone = {};
+    state.flatData.forEach(function(m, code){ flatHuByZone[code] = m.size; });
+
+    var structHu = 0;
+    STRUCT_ZONES.forEach(function(z){ structHu += (huByZone[z.code] || 0); });
+    var flatHu = 0;
+    FLAT_ZONES.forEach(function(z){ flatHu += (flatHuByZone[z.code] || 0); });
+    var otherHu = huByZone["OTHER"] || 0;
 
     var banner = document.getElementById("inventoryDiagBanner");
-    if (sumMp===0 && sumPf===0 && (sumOther>0 || sumObd>0)){
-      var target = sumOther >= sumObd ? "OTHER" : "OBD";
-      var targetLabel = sumOther >= sumObd ? "AUTRES" : "TPA (OBD)";
-      banner.innerHTML = "Aucune donnée MP/PF détectée avec le format d'emplacement attendu (RACK-NIVEAU-POSITION). Vos données ont été classées dans l'onglet <strong>" + escapeHtml(targetLabel) + "</strong> — affiché automatiquement ci-dessous.";
-      banner.classList.remove("hidden");
-      switchInvTab(target);
+    var codes = TAB_CODES || [];
+    var pick = null;
+    if (structHu === 0 && (otherHu > 0 || flatHu > 0)){
+      var bestCode = null, bestCount = -1;
+      FLAT_ZONES.forEach(function(z){
+        var c = flatHuByZone[z.code] || 0;
+        if (c > bestCount){ bestCount = c; bestCode = z.code; }
+      });
+      if (otherHu > bestCount){ bestCount = otherHu; bestCode = "OTHER"; }
+      if (bestCode){
+        pick = bestCode;
+        var bestLabel = bestCode === "OTHER" ? "AUTRES" : (getZoneByCode(bestCode) || {label:bestCode}).label;
+        banner.innerHTML = "Aucune donnée structurée détectée avec le format RACK-NIVEAU-POSITION. Vos données ont été classées dans l'onglet <strong>" + escapeHtml(bestLabel) + "</strong> — affiché automatiquement.";
+        banner.classList.remove("hidden");
+      }
     } else {
       banner.classList.add("hidden");
-      switchInvTab(state.activeInvTab && ["MP","PF","OBD","OTHER"].indexOf(state.activeInvTab)!==-1 ? state.activeInvTab : "MP");
     }
+    if (!pick){
+      pick = (state.activeInvTab && codes.indexOf(state.activeInvTab) !== -1) ? state.activeInvTab : (codes[0] || "OTHER");
+    }
+    switchInvTab(pick);
   }
 
   function switchInvTab(tab){
+    var codes = TAB_CODES || [];
+    if (codes.indexOf(tab) === -1) tab = codes[0] || tab;
     state.activeInvTab = tab;
     document.querySelectorAll(".inv-tab-btn").forEach(function(b){ b.classList.toggle("active", b.getAttribute("data-tab")===tab); });
-    ["MP","PF","OBD","OTHER"].forEach(function(t){ document.getElementById("view"+t).classList.toggle("hidden", t!==tab); });
-    document.getElementById("searchResultView").classList.add("hidden");
-    document.getElementById("tabsBar").classList.remove("hidden");
+    codes.forEach(function(t){
+      var el = document.getElementById(zoneViewId(t));
+      if (el) el.classList.toggle("hidden", t !== tab);
+    });
+    var searchView = document.getElementById("searchResultView");
+    if (searchView) searchView.classList.add("hidden");
+    var tabsBar = document.getElementById("tabsBar");
+    if (tabsBar) tabsBar.classList.remove("hidden");
   }
-  document.querySelectorAll(".inv-tab-btn").forEach(function(btn){
-    btn.addEventListener("click", function(){ clearSearchInputs(); switchInvTab(btn.getAttribute("data-tab")); });
-  });
 
   /* ---- Recherche intelligente Bin / Article / Rack ---- */
   var searchBinInput = document.getElementById("searchBin");
   var searchArticleInput = document.getElementById("searchArticle");
   var searchRackInput = document.getElementById("searchRack");
   var acBin = document.getElementById("acBin"), acArticle = document.getElementById("acArticle"), acRack = document.getElementById("acRack");
-  var ALL_RACKS = MP_RACKS.concat(PF_RACKS);
+  function ALL_RACKS(){ return ALL_RACKS_LIST; }
   var MAX_SUGGESTIONS = 20;
 
   function clearSearchInputs(){ searchBinInput.value=""; searchArticleInput.value=""; searchRackInput.value=""; hideAllDropdowns(); }
@@ -2239,8 +2608,8 @@ body.license-locked { overflow: hidden; }
   searchRackInput.addEventListener("input", function(){
     var q = searchRackInput.value.trim().toUpperCase();
     if (!q){ hideAllDropdowns(); return; }
-    var matches = ALL_RACKS.filter(function(r){ return r.indexOf(q)!==-1; });
-    var items = matches.map(function(r){ return { code:r, right: MP_RACKS.indexOf(r)!==-1 ? "MP":"PF" }; });
+    var matches = ALL_RACKS().filter(function(r){ return r.indexOf(q)!==-1; });
+    var items = matches.map(function(r){ var zz = getZoneForRack(r); return { code:r, right: zz ? zz.code : "" }; });
     renderDropdown(acRack, items, function(it){ searchRackInput.value=it.code; showRackFilter([it.code]); });
   });
   document.addEventListener("click", function(e){ if (!e.target.closest(".form-field")) hideAllDropdowns(); });
@@ -2263,18 +2632,26 @@ body.license-locked { overflow: hidden; }
     } else if (mode==="rack"){
       var rackVal = searchRackInput.value.trim().toUpperCase(); if (!rackVal) return;
       searchBinInput.value=""; searchArticleInput.value="";
-      if (ALL_RACKS.indexOf(rackVal)!==-1){ showRackFilter([rackVal]); return; }
-      var rackMatches = ALL_RACKS.filter(function(r){ return r.indexOf(rackVal)!==-1; });
+      var racks = ALL_RACKS();
+      if (racks.indexOf(rackVal)!==-1){ showRackFilter([rackVal]); return; }
+      var rackMatches = racks.filter(function(r){ return r.indexOf(rackVal)!==-1; });
       if (rackMatches.length) showRackFilter(rackMatches); else showRackFilter([rackVal]);
     }
   }
   searchBinInput.addEventListener("keydown", function(e){ if (e.key==="Enter") runSearch("bin"); if (e.key==="Escape") hideAllDropdowns(); });
   searchArticleInput.addEventListener("keydown", function(e){ if (e.key==="Enter") runSearch("article"); if (e.key==="Escape") hideAllDropdowns(); });
   searchRackInput.addEventListener("keydown", function(e){ if (e.key==="Enter") runSearch("rack"); if (e.key==="Escape") hideAllDropdowns(); });
-  document.getElementById("btnClearSearch").addEventListener("click", function(){ clearSearchInputs(); switchInvTab(state.activeInvTab||"MP"); });
+  document.getElementById("btnClearSearch").addEventListener("click", function(){
+    clearSearchInputs();
+    var codes = TAB_CODES || [];
+    switchInvTab(state.activeInvTab && codes.indexOf(state.activeInvTab)!==-1 ? state.activeInvTab : (codes[0] || "OTHER"));
+  });
 
   function showSearchView(){
-    ["MP","PF","OBD","OTHER"].forEach(function(t){ document.getElementById("view"+t).classList.add("hidden"); });
+    (TAB_CODES || []).forEach(function(t){
+      var el = document.getElementById(zoneViewId(t));
+      if (el) el.classList.add("hidden");
+    });
     document.getElementById("tabsBar").classList.add("hidden");
     document.getElementById("searchResultView").classList.remove("hidden");
   }
@@ -2330,18 +2707,19 @@ body.license-locked { overflow: hidden; }
   }
 
   function showRackFilter(rackVals){
-    var validRacks = rackVals.filter(function(r){ return MP_RACKS.indexOf(r)!==-1 || PF_RACKS.indexOf(r)!==-1; });
+    var validRacks = rackVals.filter(function(r){ return getZoneForRack(r) !== null; });
     var card = document.getElementById("searchResultCard");
     if (!validRacks.length){ card.innerHTML = '<div class="empty-state">Rack "'+escapeHtml(rackVals.join(", "))+'" introuvable</div><div class="print-footer"></div>'; showSearchView(); stampPrintFooters(); return; }
     var html = '<div class="detail-title">RACK'+(validRacks.length>1?"S":"")+' '+escapeHtml(validRacks.join(", "))+'</div><div class="detail-sub">Vue filtrée</div>'+
       '<div class="legend"><span><i style="background:#16A34A;"></i> HU = 0</span><span><i style="background:#DBEAFE;"></i> HU 1–20</span>'+
       '<span><i style="background:#F37021;"></i> HU 21–50</span><span><i style="background:#DC2626;"></i> HU &gt; 50</span></div>';
     validRacks.forEach(function(rackVal){
-      var isMp = MP_RACKS.indexOf(rackVal)!==-1; var section = isMp?"MP":"PF"; var levels = isMp?MP_LEVELS:PF_LEVELS; var positions = isMp?MP_POSITIONS:PF_POSITIONS;
-      html += '<div class="rack-block" data-rack="'+escapeHtml(rackVal)+'"><div class="rack-title">RACK '+escapeHtml(rackVal)+' ('+section+')</div>';
-      levels.forEach(function(level){
+      var zone = getZoneForRack(rackVal);
+      if (!zone) return;
+      html += '<div class="rack-block" data-rack="'+escapeHtml(rackVal)+'"><div class="rack-title">RACK '+escapeHtml(rackVal)+' ('+zone.code+')</div>';
+      zone.levels.forEach(function(level){
         html += '<div class="level-row"><div class="level-label">Niveau '+level+'</div><div class="level-cells">';
-        for (var p=1;p<=positions;p++) html += binCellHtml(rackVal+"-"+level+"-"+p);
+        for (var p = zone.pos_min; p <= zone.pos_max; p++) html += binCellHtml(rackVal+"-"+level+"-"+p);
         html += '</div></div>';
       });
       html += '</div>';
@@ -2376,9 +2754,10 @@ body.license-locked { overflow: hidden; }
     html2pdf().set(opt).from(el).save().then(exitPrintMode);
   }
   document.getElementById("btnExportPdf").addEventListener("click", function(){
-    var section = state.activeInvTab;
-    var el = document.getElementById("searchResultView").classList.contains("hidden") ? "view"+section : "searchResultView";
-    exportPdf(el, "AZOUMAG_Inventory_" + section + ".pdf");
+    var section = state.activeInvTab || "OTHER";
+    var isSearch = !document.getElementById("searchResultView").classList.contains("hidden");
+    var el = isSearch ? "searchResultView" : zoneViewId(section);
+    exportPdf(el, "WarehouseLab_Inventory_" + section + ".pdf");
   });
   document.getElementById("btnExportSearchPdf").addEventListener("click", function(){ exportPdf("searchResultView", "AZOUMAG_Inventory_SearchResult.pdf"); });
 
@@ -2993,9 +3372,10 @@ body.license-locked { overflow: hidden; }
     if (!confirm("Charger un nouveau fichier ? Les données actuelles (hors historique) seront perdues.")) return;
     state.headers=[]; state.rows=[]; state.mapping={bin:null,material:null,quantity:null,batch:null,highestLevelHu:null,hu:null,description:null};
     state.allLines=[]; state.linesWithoutBin=[]; state.binIndex=new Map(); state.materialIndex=new Map();
-    state.binAgg=new Map(); state.materialAgg=new Map(); state.obdData=new Map();
+    state.binAgg=new Map(); state.materialAgg=new Map(); state.flatData=new Map();
     state.binKeyList=[]; state.articleList=[]; state.ignoredLines=0; state.hasData=false; state.gapCounts={}; state.fileSignature="";
     fileInput.value = "";
+    wlabClearSession();
     refreshAllModules();
     document.getElementById("reportBody").innerHTML = '<div class="empty-state">Cliquez sur "Générer le Rapport" pour créer la synthèse.</div>';
     document.getElementById("reportContent").classList.add("hidden");
@@ -3004,8 +3384,17 @@ body.license-locked { overflow: hidden; }
   });
 
   /* ---- Initialisation ---- */
+  window.__wlabAppRefresh = refreshAllModules;
+  // Tenter la restauration de la dernière session si config déjà chargée
+  var restored = wlabLoadSession();
   goToPage("dashboard");
   refreshAllModules();
+  if (restored){
+    try {
+      var when = restored.savedAt ? new Date(restored.savedAt).toLocaleString() : "";
+      console.log("[WLAB] Session restaurée : " + restored.rows + " lignes de " + (restored.fileName || "fichier inconnu") + (when ? " (" + when + ")" : ""));
+    } catch(e){}
+  }
 
 })();
 </script>

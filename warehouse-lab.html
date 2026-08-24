@@ -480,6 +480,9 @@ body.license-locked { overflow: hidden; }
   .wizard-step .lbl { display: none; }
   .zone-item .zone-fields { grid-template-columns: 1fr; }
 }
+.sim-label { display:block; font-size:12px; font-weight:600; color:#1D2240; margin-bottom:4px; }
+.sim-input { width:100%; padding:8px 10px; border:1px solid #CBD5E1; border-radius:6px; font-size:13px; font-family:inherit; background:#fff; }
+.sim-input:focus { outline:none; border-color:#F37021; box-shadow:0 0 0 2px rgba(243,112,33,0.15); }
 </style>
 </head>
 <body>
@@ -1289,6 +1292,7 @@ body.license-locked { overflow: hidden; }
       <li class="nav-item"><div class="nav-link" data-page="gap"><span class="ico">&#8776;</span> Écarts Inventaire</div></li>
       <li class="nav-item"><div class="nav-link" data-page="compare"><span class="ico">&#8646;</span> Comparaison</div></li>
       <li class="nav-item"><div class="nav-link" data-page="anomalies"><span class="ico">&#9888;</span> Anomalies</div></li>
+      <li class="nav-item"><div class="nav-link" data-page="simulator"><span class="ico">&#9881;</span> Simulateur</div></li>
       <li class="nav-item"><div class="nav-link" data-page="report"><span class="ico">&#128203;</span> Rapport</div></li>
       <li class="nav-item"><div class="nav-link" data-page="history"><span class="ico">&#8635;</span> Historique</div></li>
     </ul>
@@ -1681,6 +1685,56 @@ body.license-locked { overflow: hidden; }
         <div id="anomaliesCards"></div>
       </div>
     </div>
+    <!-- ============ PAGE : SIMULATEUR DE RÉAGENCEMENT ============ -->
+    <div class="page hidden" id="page-simulator">
+      <div class="page-desc">Planifiez virtuellement des déplacements de bins, prévisualisez l'impact et exportez une feuille de mission ordonnée.</div>
+      <div id="simulatorEmpty" class="card"><div class="empty-state">Importez un fichier pour commencer à simuler des mouvements.</div></div>
+      <div id="simulatorContent" class="hidden">
+        <div class="card">
+          <div class="page-title-row">
+            <div><h2 style="font-size:14px; color:#1D2240;">Ajouter un mouvement</h2><div class="page-desc">Déplacer tout le contenu d'un bin source vers un bin cible (mode « full » — MVP).</div></div>
+          </div>
+          <div class="form-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:10px;">
+            <div>
+              <label class="sim-label">Bin source</label>
+              <input type="text" id="simFromBin" class="sim-input" placeholder="ex. A-0-3" list="simBinsExisting" autocomplete="off"/>
+              <div id="simFromHint" class="page-desc" style="margin-top:4px;"></div>
+            </div>
+            <div>
+              <label class="sim-label">Bin cible</label>
+              <input type="text" id="simToBin" class="sim-input" placeholder="ex. B-1-5" autocomplete="off"/>
+              <div id="simToHint" class="page-desc" style="margin-top:4px;"></div>
+            </div>
+            <div style="grid-column: 1 / -1;">
+              <label class="sim-label">Note (optionnelle)</label>
+              <input type="text" id="simNote" class="sim-input" placeholder="ex. Regroupement PN 12345"/>
+            </div>
+          </div>
+          <datalist id="simBinsExisting"></datalist>
+          <div class="btn-row" style="margin-top:12px;">
+            <button class="btn btn-primary btn-sm" id="btnSimAddMove">Ajouter au plan</button>
+            <button class="btn btn-ghost btn-sm" id="btnSimClearPlan">Vider le plan</button>
+            <button class="btn btn-navy btn-sm" id="btnSimExport" style="margin-left:auto;">Export mission sheet</button>
+          </div>
+        </div>
+
+        <div class="kpi-grid" id="simKpiGrid"></div>
+
+        <div class="card">
+          <div class="page-title-row">
+            <div><h2 style="font-size:14px; color:#1D2240;">Plan de mouvements</h2><div class="page-desc" id="simPlanCount">0 mouvement planifié.</div></div>
+          </div>
+          <div class="table-wrap"><table class="data-table" id="simPlanTable"><thead><tr><th>#</th><th>De</th><th>Vers</th><th>HU</th><th>Articles</th><th>Note</th><th></th></tr></thead><tbody id="simPlanBody"></tbody></table></div>
+        </div>
+
+        <div class="card">
+          <div class="page-title-row">
+            <div><h2 style="font-size:14px; color:#1D2240;">Preview d'impact</h2><div class="page-desc">Comparaison avant / après application du plan sur les bins concernés.</div></div>
+          </div>
+          <div class="table-wrap"><table class="data-table" id="simPreviewTable"><thead><tr><th>Bin</th><th>HU avant</th><th>Articles avant</th><th>Qté avant</th><th>HU après</th><th>Articles après</th><th>Qté après</th><th>Statut</th></tr></thead><tbody id="simPreviewBody"></tbody></table></div>
+        </div>
+      </div>
+    </div>
     <!-- ============ PAGE : RAPPORT AUTOMATIQUE ============ -->
     <div class="page hidden" id="page-report">
       <div class="page-desc">Rapport de synthèse généré automatiquement à partir des données importées.</div>
@@ -1948,7 +2002,7 @@ body.license-locked { overflow: hidden; }
      ====================================================================== */
   var PAGE_TITLES = { dashboard:"Dashboard", import:"Import SAP", inventory:"Feuilles d'Inventaire", barcode:"Codes-barres",
     bins:"Gestion des Bins", hu:"Analyse HU", batch:"Analyse Batchs", gap:"Écarts Inventaire",
-    compare:"Comparaison", anomalies:"Anomalies", report:"Rapport", history:"Historique" };
+    compare:"Comparaison", anomalies:"Anomalies", simulator:"Simulateur de Réagencement", report:"Rapport", history:"Historique" };
 
   function goToPage(page){
     document.querySelectorAll(".nav-link").forEach(function(l){ l.classList.toggle("active", l.getAttribute("data-page") === page); });
@@ -1960,6 +2014,7 @@ body.license-locked { overflow: hidden; }
     if (page === "gap" && state.hasData) renderGapTable();
     if (page === "compare") renderCompareModule();
     if (page === "anomalies") renderAnomaliesModule();
+    if (page === "simulator") renderSimulatorModule();
     if (page === "report") renderReportPage();
     closeSidebar();
   }
@@ -2279,6 +2334,7 @@ body.license-locked { overflow: hidden; }
     safeRun(renderBaselineStatus, "État Référence");
     safeRun(renderCompareModule, "Comparaison");
     safeRun(function(){ if (!document.getElementById("page-anomalies").classList.contains("hidden")) renderAnomaliesModule(); }, "Anomalies");
+    safeRun(function(){ if (!document.getElementById("page-simulator").classList.contains("hidden")) renderSimulatorModule(); }, "Simulateur");
   }
 
   /* ======================================================================
@@ -2731,6 +2787,252 @@ body.license-locked { overflow: hidden; }
 
   var btnExpAnom = document.getElementById("btnExportAnomaliesExcel");
   if (btnExpAnom) btnExpAnom.addEventListener("click", exportAnomaliesExcel);
+
+  /* ======================================================================
+     SIMULATEUR DE RÉAGENCEMENT — plan de moves + preview d'impact
+     ====================================================================== */
+  var WLAB_MOVEPLAN_KEY = "wlab_moveplan_v1";
+  var simState = { plan: [] };
+
+  function simLoadPlan(){
+    try {
+      var s = localStorage.getItem(WLAB_MOVEPLAN_KEY);
+      if (!s) { simState.plan = []; return; }
+      var p = JSON.parse(s);
+      simState.plan = Array.isArray(p) ? p : [];
+    } catch(e){ simState.plan = []; }
+  }
+
+  function simSavePlan(){
+    try { localStorage.setItem(WLAB_MOVEPLAN_KEY, JSON.stringify(simState.plan)); }
+    catch(e){ console.warn("[WLAB] impossible de sauvegarder le plan:", e); }
+  }
+
+  function simValidateBin(binRaw){
+    var raw = String(binRaw||"").trim().toUpperCase();
+    if (!raw) return { ok:false, msg:"Bin vide." };
+    var parsed = parseBinCode(raw);
+    if (!parsed) return { ok:false, msg:"Bin invalide." };
+    if (parsed.section === "OTHER") return { ok:true, warn:true, bin: raw, msg:"Bin hors config (routé en OTHER)." };
+    return { ok:true, bin: parsed.bin || raw, section: parsed.section };
+  }
+
+  function simBinContent(binKey){
+    var agg = state.binAgg.get(binKey);
+    if (!agg) return { count:0, materials:new Set(), qtySum:0 };
+    return { count: agg.count, materials: new Set(agg.materials), qtySum: agg.qtySum };
+  }
+
+  // Calcule l'état après application du plan (Map<binKey, {count, materials:Set, qtySum}>)
+  function simComputeAfter(){
+    var after = new Map();
+    function get(bin){
+      if (!after.has(bin)){
+        var cur = simBinContent(bin);
+        after.set(bin, { count: cur.count, materials: new Set(cur.materials), qtySum: cur.qtySum });
+      }
+      return after.get(bin);
+    }
+    simState.plan.forEach(function(move){
+      var from = get(move.from_bin);
+      var to = get(move.to_bin);
+      // full move : tout part de from vers to
+      to.count += from.count;
+      from.materials.forEach(function(m){ to.materials.add(m); });
+      to.qtySum += from.qtySum;
+      from.count = 0; from.materials = new Set(); from.qtySum = 0;
+    });
+    return after;
+  }
+
+  function simImpactedBins(){
+    var set = new Set();
+    simState.plan.forEach(function(m){ set.add(m.from_bin); set.add(m.to_bin); });
+    return Array.from(set).sort();
+  }
+
+  function simRefreshBinsDatalist(){
+    var dl = document.getElementById("simBinsExisting");
+    if (!dl) return;
+    var bins = [];
+    state.binAgg.forEach(function(_, key){ bins.push(key); });
+    bins.sort();
+    dl.innerHTML = bins.map(function(b){ return '<option value="'+escapeHtml(b)+'">'; }).join("");
+  }
+
+  function renderSimulatorModule(){
+    var empty = document.getElementById("simulatorEmpty");
+    var content = document.getElementById("simulatorContent");
+    if (!empty || !content) return;
+    if (!state.hasData){
+      empty.classList.remove("hidden"); content.classList.add("hidden");
+      return;
+    }
+    empty.classList.add("hidden"); content.classList.remove("hidden");
+
+    simRefreshBinsDatalist();
+    renderSimPlanTable();
+    renderSimPreview();
+  }
+
+  function renderSimPlanTable(){
+    var body = document.getElementById("simPlanBody");
+    var count = document.getElementById("simPlanCount");
+    if (!body || !count) return;
+    count.textContent = simState.plan.length + " mouvement" + (simState.plan.length > 1 ? "s" : "") + " planifié" + (simState.plan.length > 1 ? "s" : "") + ".";
+    if (simState.plan.length === 0){
+      body.innerHTML = '<tr><td colspan="7" class="empty-state">Aucun mouvement — ajoutez-en un via le formulaire ci-dessus.</td></tr>';
+      return;
+    }
+    body.innerHTML = simState.plan.map(function(m, i){
+      var src = simBinContent(m.from_bin);
+      return '<tr>'
+        + '<td>' + (i+1) + '</td>'
+        + '<td><strong>' + escapeHtml(m.from_bin) + '</strong></td>'
+        + '<td><strong>' + escapeHtml(m.to_bin) + '</strong></td>'
+        + '<td>' + src.count + '</td>'
+        + '<td>' + src.materials.size + '</td>'
+        + '<td>' + escapeHtml(m.note || "") + '</td>'
+        + '<td><button class="btn btn-ghost btn-sm" data-sim-remove="' + i + '">Supprimer</button></td>'
+        + '</tr>';
+    }).join("");
+    Array.prototype.forEach.call(body.querySelectorAll("[data-sim-remove]"), function(btn){
+      btn.addEventListener("click", function(){
+        var i = parseInt(btn.getAttribute("data-sim-remove"), 10);
+        simState.plan.splice(i, 1);
+        simSavePlan();
+        renderSimulatorModule();
+      });
+    });
+  }
+
+  function renderSimPreview(){
+    var kpiHost = document.getElementById("simKpiGrid");
+    var body = document.getElementById("simPreviewBody");
+    if (!kpiHost || !body) return;
+
+    var after = simComputeAfter();
+    var impacted = simImpactedBins();
+
+    var totalHuMoved = 0, articlesImpacted = new Set(), binsFreed = 0, binsCreated = 0;
+    simState.plan.forEach(function(m){
+      var src = simBinContent(m.from_bin);
+      totalHuMoved += src.count;
+      src.materials.forEach(function(a){ articlesImpacted.add(a); });
+    });
+    impacted.forEach(function(b){
+      var before = simBinContent(b);
+      var aft = after.get(b) || { count: before.count };
+      if (before.count > 0 && aft.count === 0) binsFreed++;
+      if (before.count === 0 && aft.count > 0) binsCreated++;
+    });
+
+    var kpis = [
+      { label: "Mouvements", value: simState.plan.length },
+      { label: "HU déplacées", value: totalHuMoved },
+      { label: "Articles impactés", value: articlesImpacted.size },
+      { label: "Bins libérés", value: binsFreed, cls: binsFreed > 0 ? "good" : "" },
+      { label: "Bins créés", value: binsCreated }
+    ];
+    kpiHost.innerHTML = kpis.map(function(k){
+      return '<div class="kpi-card ' + (k.cls||"") + '"><div class="kv">' + escapeHtml(k.value) + '</div><div class="kl">' + escapeHtml(k.label) + '</div></div>';
+    }).join("");
+
+    if (impacted.length === 0){
+      body.innerHTML = '<tr><td colspan="8" class="empty-state">Ajoutez un mouvement pour voir la preview.</td></tr>';
+      return;
+    }
+    body.innerHTML = impacted.map(function(b){
+      var before = simBinContent(b);
+      var aft = after.get(b) || { count: before.count, materials: before.materials, qtySum: before.qtySum };
+      var status = "inchangé", cls = "";
+      if (before.count > 0 && aft.count === 0){ status = "LIBÉRÉ"; cls = 'style="color:#16A34A; font-weight:700;"'; }
+      else if (before.count === 0 && aft.count > 0){ status = "REÇOIT"; cls = 'style="color:#0EA5E9; font-weight:700;"'; }
+      else if (aft.count !== before.count){ status = "MODIFIÉ"; cls = 'style="color:#F37021; font-weight:700;"'; }
+      return '<tr>'
+        + '<td><strong>' + escapeHtml(b) + '</strong></td>'
+        + '<td>' + before.count + '</td>'
+        + '<td>' + before.materials.size + '</td>'
+        + '<td>' + formatNum(before.qtySum) + '</td>'
+        + '<td>' + aft.count + '</td>'
+        + '<td>' + aft.materials.size + '</td>'
+        + '<td>' + formatNum(aft.qtySum) + '</td>'
+        + '<td ' + cls + '>' + status + '</td>'
+        + '</tr>';
+    }).join("");
+  }
+
+  function simAddMoveFromForm(){
+    var fromEl = document.getElementById("simFromBin");
+    var toEl = document.getElementById("simToBin");
+    var noteEl = document.getElementById("simNote");
+    var fromHint = document.getElementById("simFromHint");
+    var toHint = document.getElementById("simToHint");
+    fromHint.textContent = ""; toHint.textContent = "";
+
+    var vFrom = simValidateBin(fromEl.value);
+    var vTo = simValidateBin(toEl.value);
+    if (!vFrom.ok){ fromHint.textContent = vFrom.msg; return; }
+    if (!vTo.ok){ toHint.textContent = vTo.msg; return; }
+    if (vFrom.bin === vTo.bin){ toHint.textContent = "Source et cible doivent différer."; return; }
+    if (!state.binAgg.has(vFrom.bin)){ fromHint.textContent = "Bin source absent des données SAP importées."; return; }
+
+    simState.plan.push({
+      id: "mv_" + Date.now() + "_" + Math.floor(Math.random()*1000),
+      from_bin: vFrom.bin,
+      to_bin: vTo.bin,
+      mode: "full",
+      note: String(noteEl.value||"").trim(),
+      ts: new Date().toISOString()
+    });
+    simSavePlan();
+    fromEl.value = ""; toEl.value = ""; noteEl.value = "";
+    renderSimulatorModule();
+  }
+
+  function simClearPlan(){
+    if (simState.plan.length === 0) return;
+    if (!confirm("Vider entièrement le plan de mouvements ?")) return;
+    simState.plan = [];
+    simSavePlan();
+    renderSimulatorModule();
+  }
+
+  function simExportMissionSheet(){
+    if (simState.plan.length === 0){ alert("Le plan est vide."); return; }
+    var wb = XLSX.utils.book_new();
+
+    var planRows = [["#", "De", "Vers", "Mode", "HU", "Articles", "Note", "Fait"]];
+    simState.plan.forEach(function(m, i){
+      var src = simBinContent(m.from_bin);
+      planRows.push([i+1, m.from_bin, m.to_bin, m.mode, src.count, src.materials.size, m.note||"", ""]);
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(planRows), "Plan");
+
+    var after = simComputeAfter();
+    var impacted = simImpactedBins();
+    var prevRows = [["Bin", "HU avant", "Articles avant", "Qté avant", "HU après", "Articles après", "Qté après", "Statut"]];
+    impacted.forEach(function(b){
+      var before = simBinContent(b);
+      var aft = after.get(b) || { count: before.count, materials: before.materials, qtySum: before.qtySum };
+      var status = "inchangé";
+      if (before.count > 0 && aft.count === 0) status = "LIBÉRÉ";
+      else if (before.count === 0 && aft.count > 0) status = "REÇOIT";
+      else if (aft.count !== before.count) status = "MODIFIÉ";
+      prevRows.push([b, before.count, before.materials.size, before.qtySum, aft.count, aft.materials.size, aft.qtySum, status]);
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(prevRows), "Preview");
+
+    XLSX.writeFile(wb, "WarehouseLab_Mission.xlsx");
+  }
+
+  simLoadPlan();
+  var btnSimAdd = document.getElementById("btnSimAddMove");
+  var btnSimClear = document.getElementById("btnSimClearPlan");
+  var btnSimExp = document.getElementById("btnSimExport");
+  if (btnSimAdd) btnSimAdd.addEventListener("click", simAddMoveFromForm);
+  if (btnSimClear) btnSimClear.addEventListener("click", simClearPlan);
+  if (btnSimExp) btnSimExp.addEventListener("click", simExportMissionSheet);
 
   /* ======================================================================
      DASHBOARD : KPI + GRAPHIQUES + HEATMAP

@@ -1287,6 +1287,7 @@ body.license-locked { overflow: hidden; }
       <li class="nav-item"><div class="nav-link" data-page="hu"><span class="ico">&#9737;</span> Analyse HU</div></li>
       <li class="nav-item"><div class="nav-link" data-page="batch"><span class="ico">&#9881;</span> Analyse Batchs</div></li>
       <li class="nav-item"><div class="nav-link" data-page="gap"><span class="ico">&#8776;</span> Écarts Inventaire</div></li>
+      <li class="nav-item"><div class="nav-link" data-page="compare"><span class="ico">&#8646;</span> Comparaison</div></li>
       <li class="nav-item"><div class="nav-link" data-page="report"><span class="ico">&#128203;</span> Rapport</div></li>
       <li class="nav-item"><div class="nav-link" data-page="history"><span class="ico">&#8635;</span> Historique</div></li>
     </ul>
@@ -1414,6 +1415,17 @@ body.license-locked { overflow: hidden; }
           </div>
         </div>
         <div class="table-wrap"><table class="data-table" id="previewTable"></table></div>
+      </div>
+
+      <div class="card" id="baselineCard">
+        <div class="page-title-row">
+          <h2 style="font-size:15px; color:#1D2240;">Référence pour la comparaison</h2>
+          <div class="btn-row">
+            <button class="btn btn-navy btn-sm" id="btnSetBaseline" disabled>Définir comme référence</button>
+            <button class="btn btn-outline btn-sm" id="btnClearBaseline" disabled>Effacer la référence</button>
+          </div>
+        </div>
+        <div id="baselineStatus" class="page-desc">Aucune référence enregistrée. Importez un fichier puis cliquez "Définir comme référence" pour pouvoir comparer un import futur.</div>
       </div>
     </div>
     <!-- ============ PAGE : GÉNÉRATEUR DE FEUILLES D'INVENTAIRE ============ -->
@@ -1608,6 +1620,46 @@ body.license-locked { overflow: hidden; }
         <div class="card">
           <div class="table-wrap"><table class="data-table" id="gapTable"><thead><tr><th>Bin</th><th>SAP (HU)</th><th>Compté</th><th>Écart</th><th>Statut</th></tr></thead><tbody id="gapTableBody"></tbody></table></div>
           <div class="pagination" id="gapPagination"></div>
+        </div>
+      </div>
+    </div>
+    <!-- ============ PAGE : COMPARAISON ============ -->
+    <div class="page hidden" id="page-compare">
+      <div class="page-desc">Compare la session actuelle (fichier importé) avec la référence enregistrée. Idéal pour repérer ce qui a bougé entre deux exports SAP.</div>
+      <div id="compareEmpty" class="card"><div class="empty-state">Aucune comparaison disponible. Définissez une référence sur la page Import et importez ensuite un nouveau fichier.</div></div>
+      <div id="compareContent" class="hidden">
+        <div class="card">
+          <div class="page-title-row">
+            <div><h2 style="font-size:14px; color:#1D2240;">Sources comparées</h2><div id="compareSources" class="page-desc"></div></div>
+            <div class="btn-row">
+              <button class="btn btn-navy btn-sm" id="btnExportCompareExcel">Export Excel</button>
+            </div>
+          </div>
+        </div>
+        <div class="kpi-grid" id="compareKpiGrid"></div>
+        <div class="card">
+          <div class="page-title-row">
+            <h3 style="font-size:14px; color:#1D2240;">Bins modifiés</h3>
+            <div class="btn-row" id="compareBinsFilter">
+              <button class="btn btn-outline btn-sm active" data-filter="all">Tous</button>
+              <button class="btn btn-outline btn-sm" data-filter="added">Ajouts</button>
+              <button class="btn btn-outline btn-sm" data-filter="removed">Retraits</button>
+              <button class="btn btn-outline btn-sm" data-filter="delta">Deltas HU</button>
+            </div>
+          </div>
+          <div class="table-wrap"><table class="data-table" id="compareBinsTable"><thead><tr><th>Bin</th><th>Zone</th><th>HU avant</th><th>HU après</th><th>Δ HU</th><th>Δ Quantité</th><th>Statut</th></tr></thead><tbody id="compareBinsBody"></tbody></table></div>
+        </div>
+        <div class="card">
+          <div class="page-title-row">
+            <h3 style="font-size:14px; color:#1D2240;">Articles modifiés</h3>
+            <div class="btn-row" id="compareMaterialsFilter">
+              <button class="btn btn-outline btn-sm active" data-filter="all">Tous</button>
+              <button class="btn btn-outline btn-sm" data-filter="added">Ajouts</button>
+              <button class="btn btn-outline btn-sm" data-filter="removed">Retraits</button>
+              <button class="btn btn-outline btn-sm" data-filter="delta">Deltas quantité</button>
+            </div>
+          </div>
+          <div class="table-wrap"><table class="data-table" id="compareMaterialsTable"><thead><tr><th>Article</th><th>Qté avant</th><th>Qté après</th><th>Δ Quantité</th><th>Bins avant</th><th>Bins après</th><th>Statut</th></tr></thead><tbody id="compareMaterialsBody"></tbody></table></div>
         </div>
       </div>
     </div>
@@ -2203,7 +2255,247 @@ body.license-locked { overflow: hidden; }
     safeRun(function(){ if (!document.getElementById("page-hu").classList.contains("hidden")) renderHuAnalysis(); }, "Analyse HU");
     safeRun(function(){ if (!document.getElementById("page-batch").classList.contains("hidden")) renderBatchAnalysis(); }, "Analyse Batchs");
     safeRun(function(){ if (!document.getElementById("page-gap").classList.contains("hidden")) renderGapTable(); }, "Écarts Inventaire");
+    safeRun(renderBaselineStatus, "État Référence");
+    safeRun(renderCompareModule, "Comparaison");
   }
+
+  /* ======================================================================
+     COMPARAISON entre baseline (référence) et session courante
+     ====================================================================== */
+  var WLAB_BASELINE_KEY = "wlab_baseline_v1";
+  var compareState = { bins: [], materials: [], filters: { bins: "all", materials: "all" }, sources: null };
+
+  function loadBaseline(){
+    try {
+      var s = localStorage.getItem(WLAB_BASELINE_KEY);
+      if (!s) return null;
+      var p = JSON.parse(s);
+      if (!p || !Array.isArray(p.rows) || !Array.isArray(p.headers) || !p.mapping) return null;
+      return p;
+    } catch(e){ return null; }
+  }
+
+  function saveBaselineFromCurrent(){
+    if (!state.hasData){ alert("Importez d'abord un fichier avant de le définir comme référence."); return; }
+    var payload = {
+      headers: state.headers, rows: state.rows, mapping: state.mapping,
+      fileName: state.fileName || "référence",
+      fileSignature: state.fileSignature || "",
+      savedAt: new Date().toISOString()
+    };
+    var str;
+    try { str = JSON.stringify(payload); } catch(e){ alert("Impossible de sérialiser la référence."); return; }
+    if (str.length > WLAB_SESSION_MAX_BYTES){ alert("Fichier trop volumineux pour être enregistré comme référence (limite ~5 MB)."); return; }
+    try { localStorage.setItem(WLAB_BASELINE_KEY, str); }
+    catch(e){ alert("Échec de l'enregistrement (localStorage plein ?) : " + e.message); return; }
+    renderBaselineStatus(); renderCompareModule();
+  }
+
+  function clearBaseline(){
+    if (!confirm("Effacer la référence enregistrée ?")) return;
+    try { localStorage.removeItem(WLAB_BASELINE_KEY); } catch(e){}
+    renderBaselineStatus(); renderCompareModule();
+  }
+
+  function renderBaselineStatus(){
+    var status = document.getElementById("baselineStatus");
+    var btnSet = document.getElementById("btnSetBaseline");
+    var btnClear = document.getElementById("btnClearBaseline");
+    if (!status || !btnSet || !btnClear) return;
+    var base = loadBaseline();
+    btnSet.disabled = !state.hasData;
+    btnClear.disabled = !base;
+    if (base){
+      var when = base.savedAt ? new Date(base.savedAt).toLocaleString() : "";
+      status.innerHTML = 'Référence enregistrée : <strong>' + escapeHtml(base.fileName || "fichier inconnu") + '</strong> — ' + base.rows.length + ' lignes' + (when ? ' — <em>' + escapeHtml(when) + '</em>' : '');
+    } else {
+      status.textContent = "Aucune référence enregistrée. Importez un fichier puis cliquez \"Définir comme référence\" pour pouvoir comparer un import futur.";
+    }
+  }
+
+  // Aggregate une baseline brute (rows + mapping) en bins et materials, sans polluer state.
+  function aggregateBaseline(base){
+    var m = base.mapping;
+    var binAgg = new Map(), materialAgg = new Map();
+    (base.rows || []).forEach(function(row){
+      var binRaw = row[m.bin]; if (!binRaw) return;
+      var material = String(row[m.material] || "").trim();
+      var qty = toNumber(row[m.quantity]);
+      var parsed = parseBinCode(binRaw); if (!parsed) return;
+      if (parsed.tpa !== undefined){
+        // Zone plate : agréger par tpa|material comme dans processData
+        var kFlat = parsed.tpa;
+        if (!binAgg.has(kFlat)) binAgg.set(kFlat, { count: 0, qtySum: 0, materials: new Set(), section: parsed.section });
+        var bf = binAgg.get(kFlat); bf.count++; bf.qtySum += qty; if (material) bf.materials.add(material);
+      } else {
+        if (!binAgg.has(parsed.bin)) binAgg.set(parsed.bin, { count: 0, qtySum: 0, materials: new Set(), section: parsed.section });
+        var ba = binAgg.get(parsed.bin); ba.count++; ba.qtySum += qty; if (material) ba.materials.add(material);
+      }
+      if (material){
+        if (!materialAgg.has(material)) materialAgg.set(material, { qtySum: 0, count: 0, bins: new Set() });
+        var ma = materialAgg.get(material); ma.qtySum += qty; ma.count++;
+        ma.bins.add(parsed.tpa !== undefined ? parsed.tpa : parsed.bin);
+      }
+    });
+    return { binAgg: binAgg, materialAgg: materialAgg };
+  }
+
+  function computeDiff(base){
+    var A = aggregateBaseline(base);   // avant
+    var B = { binAgg: state.binAgg, materialAgg: state.materialAgg }; // après (déjà agrégé)
+
+    var bins = [];
+    var seenBins = new Set();
+    A.binAgg.forEach(function(agg, key){
+      seenBins.add(key);
+      var cur = B.binAgg.get(key);
+      var huA = agg.count, huB = cur ? cur.count : 0;
+      var qtyA = agg.qtySum, qtyB = cur ? cur.qtySum : 0;
+      var status = cur ? (huA === huB && qtyA === qtyB ? "unchanged" : "delta") : "removed";
+      if (status !== "unchanged") bins.push({ code: key, section: agg.section, huBefore: huA, huAfter: huB, dHu: huB - huA, dQty: qtyB - qtyA, status: status });
+    });
+    B.binAgg.forEach(function(agg, key){
+      if (seenBins.has(key)) return;
+      bins.push({ code: key, section: agg.section, huBefore: 0, huAfter: agg.count, dHu: agg.count, dQty: agg.qtySum, status: "added" });
+    });
+
+    var materials = [];
+    var seenMats = new Set();
+    A.materialAgg.forEach(function(agg, key){
+      seenMats.add(key);
+      var cur = B.materialAgg.get(key);
+      var qtyA = agg.qtySum, qtyB = cur ? cur.qtySum : 0;
+      var binsA = agg.bins.size, binsB = cur ? cur.bins.size : 0;
+      var status = cur ? (qtyA === qtyB && binsA === binsB ? "unchanged" : "delta") : "removed";
+      if (status !== "unchanged") materials.push({ code: key, qtyBefore: qtyA, qtyAfter: qtyB, dQty: qtyB - qtyA, binsBefore: binsA, binsAfter: binsB, status: status });
+    });
+    B.materialAgg.forEach(function(agg, key){
+      if (seenMats.has(key)) return;
+      materials.push({ code: key, qtyBefore: 0, qtyAfter: agg.qtySum, dQty: agg.qtySum, binsBefore: 0, binsAfter: agg.bins.size, status: "added" });
+    });
+
+    bins.sort(function(a,b){ return a.code.localeCompare(b.code); });
+    materials.sort(function(a,b){ return a.code.localeCompare(b.code); });
+    return { bins: bins, materials: materials, baseline: base };
+  }
+
+  function filterCompareRows(rows, filter){
+    if (filter === "added")   return rows.filter(function(r){ return r.status === "added"; });
+    if (filter === "removed") return rows.filter(function(r){ return r.status === "removed"; });
+    if (filter === "delta")   return rows.filter(function(r){ return r.status === "delta"; });
+    return rows;
+  }
+
+  function statusLabel(s){
+    if (s === "added")   return '<span style="color:#16A34A; font-weight:700;">Ajout</span>';
+    if (s === "removed") return '<span style="color:#DC2626; font-weight:700;">Retrait</span>';
+    if (s === "delta")   return '<span style="color:#F37021; font-weight:700;">Delta</span>';
+    return '<span>—</span>';
+  }
+
+  function renderCompareModule(){
+    var empty = document.getElementById("compareEmpty");
+    var content = document.getElementById("compareContent");
+    if (!empty || !content) return;
+    var base = loadBaseline();
+    if (!base || !state.hasData){
+      empty.classList.remove("hidden"); content.classList.add("hidden");
+      empty.querySelector(".empty-state").textContent = base
+        ? "Importez un fichier pour comparer avec la référence enregistrée."
+        : (state.hasData
+            ? "Aucune référence enregistrée. Sur la page Import, cliquez \"Définir comme référence\" avant d'importer un autre fichier."
+            : "Aucune comparaison disponible. Définissez une référence sur la page Import et importez ensuite un nouveau fichier.");
+      return;
+    }
+    empty.classList.add("hidden"); content.classList.remove("hidden");
+
+    var diff = computeDiff(base);
+    compareState.bins = diff.bins;
+    compareState.materials = diff.materials;
+    compareState.sources = { baseline: base, current: { fileName: state.fileName, rows: state.rows.length } };
+
+    var when = base.savedAt ? new Date(base.savedAt).toLocaleString() : "";
+    document.getElementById("compareSources").innerHTML =
+      '<strong>Référence :</strong> ' + escapeHtml(base.fileName || "fichier") + ' (' + base.rows.length + ' lignes' + (when ? ', ' + escapeHtml(when) : '') + ')<br>' +
+      '<strong>Session :</strong> ' + escapeHtml(state.fileName || "fichier courant") + ' (' + state.rows.length + ' lignes)';
+
+    var added = diff.bins.filter(function(b){ return b.status === "added"; }).length;
+    var removed = diff.bins.filter(function(b){ return b.status === "removed"; }).length;
+    var delta = diff.bins.filter(function(b){ return b.status === "delta"; }).length;
+    var matAdded = diff.materials.filter(function(m){ return m.status === "added"; }).length;
+    var matRemoved = diff.materials.filter(function(m){ return m.status === "removed"; }).length;
+    var matDelta = diff.materials.filter(function(m){ return m.status === "delta"; }).length;
+
+    var kpis = [
+      { label: "Bins ajoutés", value: added, cls: added > 0 ? "good" : "" },
+      { label: "Bins retirés", value: removed, cls: removed > 0 ? "alert" : "" },
+      { label: "Bins avec delta HU", value: delta },
+      { label: "Articles ajoutés", value: matAdded, cls: matAdded > 0 ? "good" : "" },
+      { label: "Articles retirés", value: matRemoved, cls: matRemoved > 0 ? "alert" : "" },
+      { label: "Articles avec delta", value: matDelta }
+    ];
+    document.getElementById("compareKpiGrid").innerHTML = kpis.map(function(k){
+      return '<div class="kpi-card ' + (k.cls || "") + '"><div class="kv">' + escapeHtml(k.value) + '</div><div class="kl">' + escapeHtml(k.label) + '</div></div>';
+    }).join("");
+
+    renderCompareBinsTable();
+    renderCompareMaterialsTable();
+  }
+
+  function renderCompareBinsTable(){
+    var tbody = document.getElementById("compareBinsBody"); if (!tbody) return;
+    var rows = filterCompareRows(compareState.bins, compareState.filters.bins);
+    if (!rows.length){ tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Aucune ligne pour ce filtre.</td></tr>'; return; }
+    tbody.innerHTML = rows.slice(0, 500).map(function(r){
+      return '<tr><td>'+escapeHtml(r.code)+'</td><td>'+escapeHtml(r.section||"")+'</td><td>'+r.huBefore+'</td><td>'+r.huAfter+'</td><td>'+(r.dHu>0?"+":"")+r.dHu+'</td><td>'+(r.dQty>0?"+":"")+formatNum(r.dQty)+'</td><td>'+statusLabel(r.status)+'</td></tr>';
+    }).join("");
+  }
+
+  function renderCompareMaterialsTable(){
+    var tbody = document.getElementById("compareMaterialsBody"); if (!tbody) return;
+    var rows = filterCompareRows(compareState.materials, compareState.filters.materials);
+    if (!rows.length){ tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Aucune ligne pour ce filtre.</td></tr>'; return; }
+    tbody.innerHTML = rows.slice(0, 500).map(function(r){
+      return '<tr><td>'+escapeHtml(r.code)+'</td><td>'+formatNum(r.qtyBefore)+'</td><td>'+formatNum(r.qtyAfter)+'</td><td>'+(r.dQty>0?"+":"")+formatNum(r.dQty)+'</td><td>'+r.binsBefore+'</td><td>'+r.binsAfter+'</td><td>'+statusLabel(r.status)+'</td></tr>';
+    }).join("");
+  }
+
+  function wireCompareUI(){
+    var btnSet = document.getElementById("btnSetBaseline");
+    var btnClear = document.getElementById("btnClearBaseline");
+    if (btnSet) btnSet.addEventListener("click", saveBaselineFromCurrent);
+    if (btnClear) btnClear.addEventListener("click", clearBaseline);
+    Array.prototype.forEach.call(document.querySelectorAll("#compareBinsFilter .btn"), function(btn){
+      btn.addEventListener("click", function(){
+        compareState.filters.bins = btn.getAttribute("data-filter");
+        Array.prototype.forEach.call(document.querySelectorAll("#compareBinsFilter .btn"), function(b){ b.classList.toggle("active", b === btn); });
+        renderCompareBinsTable();
+      });
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("#compareMaterialsFilter .btn"), function(btn){
+      btn.addEventListener("click", function(){
+        compareState.filters.materials = btn.getAttribute("data-filter");
+        Array.prototype.forEach.call(document.querySelectorAll("#compareMaterialsFilter .btn"), function(b){ b.classList.toggle("active", b === btn); });
+        renderCompareMaterialsTable();
+      });
+    });
+    var btnExport = document.getElementById("btnExportCompareExcel");
+    if (btnExport) btnExport.addEventListener("click", exportCompareExcel);
+  }
+
+  function exportCompareExcel(){
+    if (!compareState.bins.length && !compareState.materials.length){ alert("Aucune donnée de comparaison à exporter."); return; }
+    var binsRows = [["Bin","Zone","HU avant","HU après","Delta HU","Delta Quantité","Statut"]];
+    compareState.bins.forEach(function(r){ binsRows.push([r.code, r.section||"", r.huBefore, r.huAfter, r.dHu, r.dQty, r.status]); });
+    var matsRows = [["Article","Qté avant","Qté après","Delta Quantité","Bins avant","Bins après","Statut"]];
+    compareState.materials.forEach(function(r){ matsRows.push([r.code, r.qtyBefore, r.qtyAfter, r.dQty, r.binsBefore, r.binsAfter, r.status]); });
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(binsRows), "Bins");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(matsRows), "Articles");
+    XLSX.writeFile(wb, "WarehouseLab_Comparaison.xlsx");
+  }
+
+  wireCompareUI();
 
   /* ======================================================================
      DASHBOARD : KPI + GRAPHIQUES + HEATMAP

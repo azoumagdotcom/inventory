@@ -192,15 +192,29 @@ Serveur HTTP local pour tester dans le navigateur (Termux ne peut pas piloter Ch
 
 ---
 
-## Historique git v4 (extrait)
+## Historique git v4 (chronologique)
 
 ```
+04f4d9f  Ignorer package.json et package-lock.json
+0bf0647  Récapitulatif détaillé des sprints v4 livrés (S0 → S3)
 f6b291b  Sprint 3 : Simulateur de réagencement (plan + preview + export)
-007ff4e  Sprint 2 : Anomalies (7 règles + drill-down + export)
-[…]     Sprint 1 : Comparaison
-[…]     Sprint 0 : Fondation config-driven
+007ff4e  Sprint 2 : détection d'anomalies (7 règles)
+999c3fb  Sprint 1 : comparaison entre deux imports SAP
+52f759f  Ajout test-boot.mjs : smoke test Node du service WLAB.config
+b3d7b97  Fix : re-processer les données sur config-ready si session restaurée
+0d820da  Ajout serveur HTTP local pour tests navigateur
+fa496c3  Warehouse Lab : Sprint 0 fini — onglets et session config-driven
 e5ed7e7  Warehouse Lab : première ébauche v4 avec setup wizard 4 étapes
-29bf5c9  Analyse détaillée de v3 pour préparer la v4 globale
 ```
 
-Toutes les évolutions sur branche `main`, un sujet = un commit, messages français sobres.
+Toutes les évolutions sur branche `main`, un sujet = un commit, messages français sobres. Tout est poussé sur `origin/main`.
+
+---
+
+## Configuration git
+
+`.gitignore` couvre :
+- `keys/` — clés privées ECDSA de signature de licence (jamais commit)
+- `licenses/` — registre des licences émises aux clients (privé)
+- `node_modules/` — dépendances npm
+- `package.json` / `package-lock.json` — fichiers locaux pour dev/tests uniquement (non nécessaires au produit)

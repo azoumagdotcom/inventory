@@ -513,7 +513,7 @@ body.license-locked { overflow: hidden; }
     </form>
     <div class="license-footer">
       <strong>AZOUMAG © 2026</strong> &middot; The Ultimate Online Solutions<br>
-      Pour obtenir une licence : <strong>azoumagomar56@gmail.com</strong>
+      Pour obtenir une licence : <strong>azoumagdotcom@gmail.com</strong>
     </div>
   </div>
 </div>
@@ -631,9 +631,20 @@ body.license-locked { overflow: hidden; }
     }
   }
 
+  function insecureContextError(){
+    // crypto.subtle est bloqué par les navigateurs sur les origines non-sécurisées
+    // (http://<IP-LAN> ne l'est PAS ; seul localhost, 127.0.0.1 et https:// le sont).
+    if (!window.isSecureContext || !window.crypto || !window.crypto.subtle){
+      return "Contexte non sécurisé : votre navigateur bloque la vérification de la clé sur cette URL. Ouvrez l'application via http://localhost:8000 (sur cet appareil) ou via HTTPS.";
+    }
+    return null;
+  }
+
   window.AZMG_LICENSE = {
     current: null,
     activate: function(key){
+      var insecure = insecureContextError();
+      if (insecure) return Promise.resolve({ ok: false, error: insecure });
       return verifyKey(key).then(function(license){
         if (!license) return { ok: false, error: "Clé invalide ou signature incorrecte." };
         setStored(key.replace(/\s+/g, ""));

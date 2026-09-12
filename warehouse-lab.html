@@ -100,10 +100,12 @@ body.theme-dark .kpi-center-text .cv { color: #FFF4EC; }
 
 /* ---------- CHARTS ---------- */
 .chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; margin-bottom: 18px; }
-.chart-card { background: #FFFFFF; border: 1px solid #E3E3E3; border-radius: 10px; padding: 16px; }
-.chart-card h3 { font-size: 13px; font-weight: 800; color: #1D2240; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.4px; }
+.chart-card { background: #FFFFFF; border: 1px solid #E3E3E3; border-radius: 10px; padding: 16px; position:relative; }
+.chart-card h3 { font-size: 13px; font-weight: 800; color: #1D2240; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.4px; padding-right: 60px; }
 .chart-card canvas { max-height: 260px; }
 .chart-card.chart-wide { grid-column: 1 / -1; }
+.chart-jpg-btn { position:absolute; top:12px; right:12px; background:#F37021; color:#fff; border:none; border-radius:4px; padding:3px 8px; font-size:11px; font-weight:600; cursor:pointer; }
+.chart-jpg-btn:hover { background:#d85e15; }
 
 /* ---------- HEATMAP ---------- */
 .heatmap-wrap { overflow-x: auto; }
@@ -214,6 +216,20 @@ input[type=file] { display: none; }
   body.print-mode .print-page:last-child { page-break-after: auto; }
   body.print-mode .page { display: none !important; }
   body.print-mode .page.print-active { display: block !important; }
+
+  /* Dashboard direct print (bouton "Imprimer / PDF" — pas de print-mode) */
+  body:not(.print-mode) .sidebar,
+  body:not(.print-mode) .topbar,
+  body:not(.print-mode) .no-print { display: none !important; }
+  body:not(.print-mode) .app-shell { display: block !important; }
+  body:not(.print-mode) .content { padding: 0 !important; }
+  body:not(.print-mode) .chart-card,
+  body:not(.print-mode) .kpi-card,
+  body:not(.print-mode) #synthCard { break-inside: avoid; page-break-inside: avoid; }
+  body:not(.print-mode) .chart-grid { display: block; }
+  body:not(.print-mode) .chart-card { margin-bottom: 8mm; }
+  body:not(.print-mode) canvas { max-width: 100% !important; height: auto !important; }
+  body:not(.print-mode) .chart-jpg-btn { display: none !important; }
 }
 
 /* ---------- DARK MODE (surcharges explicites, sans variables CSS) ---------- */
@@ -661,6 +677,21 @@ body.license-locked { overflow: hidden; }
     isLicensed: function(){ return !!window.AZMG_LICENSE.current; }
   };
 
+  // Décode le payload d'une clé stockée sans vérifier la signature.
+  // Utilisé UNIQUEMENT au boot pour une clé déjà activée (donc précédemment vérifiée) :
+  // évite de re-perdre l'activation dans un contexte non-sécurisé.
+  function decodeStoredPayload(licenseKey){
+    if (!licenseKey || typeof licenseKey !== "string") return null;
+    var cleaned = licenseKey.replace(/\s+/g, "");
+    var m = cleaned.match(/^AZMG-([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)$/);
+    if (!m) return null;
+    try {
+      var payload = JSON.parse(bytesToStr(b64urlToBytes(m[1])));
+      if (payload && payload.p === PRODUCT_ID && typeof payload.c === "string") return payload;
+    } catch(e){}
+    return null;
+  }
+
   function init(){
     // Start hidden so nothing flashes
     var shell = document.querySelector(".app-shell");
@@ -668,6 +699,22 @@ body.license-locked { overflow: hidden; }
 
     var stored = getStored();
     if (!stored) { showGate(); wireForm(); return; }
+
+    // Contexte non-sécurisé : on ne peut pas re-vérifier la signature, mais la clé
+    // a déjà été validée à l'activation → on lui fait confiance sur le même device.
+    if (!window.isSecureContext || !window.crypto || !window.crypto.subtle){
+      var payload = decodeStoredPayload(stored);
+      if (payload){
+        window.AZMG_LICENSE.current = payload;
+        hideGate(payload);
+      } else {
+        clearStored();
+        showGate();
+      }
+      wireForm();
+      return;
+    }
+
     verifyKey(stored).then(function(license){
       if (license) {
         window.AZMG_LICENSE.current = license;
@@ -739,7 +786,8 @@ body.license-locked { overflow: hidden; }
       batch: "Batch",
       hu: "HU",
       highest_level_hu: "Highest Level HU",
-      description: "Product Short Description"
+      description: "Product Short Description",
+      stock_type: "Stock Type"
     },
     options: {
       language: "fr",
@@ -997,14 +1045,15 @@ body.license-locked { overflow: hidden; }
       colField("batch", "Batch / Lot", c.batch, true) +
       colField("hu", "HU (Handling Unit)", c.hu, true) +
       colField("highest_level_hu", "Highest Level HU (HU parent)", c.highest_level_hu, true) +
-      colField("description", "Description article", c.description, false);
+      colField("description", "Description article", c.description, false) +
+      colField("stock_type", "Stock Type (Unrestricted / Blocked / Quality)", c.stock_type, false);
   }
   function colField(key, label, val, req){
     return '<div class="wizard-field"><label>' + escHtml(label) + (req ? ' <span class="req">*</span>' : ' <span style="color:#9CA3AF;font-weight:400;">(optionnel)</span>') + '</label>' +
       '<input type="text" id="wf_col_' + key + '" value="' + escAttr(val) + '"></div>';
   }
   function readStepColumns(){
-    var keys = ["bin","material","quantity","batch","hu","highest_level_hu","description"];
+    var keys = ["bin","material","quantity","batch","hu","highest_level_hu","description","stock_type"];
     var required = ["bin","material","quantity","batch","hu","highest_level_hu"];
     for (var i = 0; i < keys.length; i++) {
       var v = document.getElementById("wf_col_" + keys[i]).value.trim();
@@ -1357,7 +1406,27 @@ body.license-locked { overflow: hidden; }
 
       <div id="dashboardContent" class="hidden">
         <div id="chartsUnavailableBanner" class="ignored-notice hidden no-print" style="background:#FFF4EC; border:1px solid #F37021; border-radius:8px; padding:10px 14px; color:#1D2240;">Graphiques indisponibles : la bibliothèque Chart.js n'a pas pu se charger (connexion internet requise lors du premier chargement de la page). Les KPI, l'inventaire et les exports restent pleinement fonctionnels.</div>
+
+        <div class="btn-row no-print" style="margin-bottom:10px; gap:8px;">
+          <button class="btn btn-navy btn-sm" id="btnDashDownloadAllJpg">📷 Télécharger tous les graphiques (JPG)</button>
+          <button class="btn btn-ghost btn-sm" id="btnDashPrint">🖨 Imprimer / PDF (A4 paysage)</button>
+        </div>
+
         <div class="kpi-grid" id="kpiGrid"></div>
+
+        <!-- Bloc Synthèse : date import + occupation par zone + top article -->
+        <div class="card" id="synthCard">
+          <div class="page-title-row">
+            <div>
+              <h2 style="font-size:14px; color:#1D2240;">Synthèse</h2>
+              <div class="page-desc" id="synthMeta"></div>
+            </div>
+          </div>
+          <div class="table-wrap"><table class="data-table" id="synthTable">
+            <thead><tr><th>Zone</th><th>Bins occupés / total</th><th>% occupation</th><th>HU</th><th>Quantité totale</th><th>Article dominant</th><th>Qté article dominant</th></tr></thead>
+            <tbody id="synthBody"></tbody>
+          </table></div>
+        </div>
 
         <div class="chart-grid">
           <div class="chart-card">
@@ -1395,6 +1464,10 @@ body.license-locked { overflow: hidden; }
           <div class="chart-card">
             <h3>Distribution HU par Bin (Histogramme)</h3>
             <canvas id="chartHuDistribution"></canvas>
+          </div>
+          <div class="chart-card">
+            <h3>Types de Stock (Utilisable / Bloqué / Qualité)</h3>
+            <canvas id="chartStockType"></canvas>
           </div>
           <div class="chart-card chart-wide">
             <h3>Heatmap des Racks (densité HU)</h3>
@@ -1946,10 +2019,11 @@ body.license-locked { overflow: hidden; }
     batch: ["batch number","batch","lot"],
     highestLevelHu: ["highest level hu","highest-level hu","highest hu","parent hu","master hu","top hu"],
     hu: ["handling unit","hu number","huid","hu"],
-    description: ["product short description","short description","material description","description","desc"]
+    description: ["product short description","short description","material description","description","desc"],
+    stockType: ["stock type","stock category","stock status","statut stock","type de stock","s","stk type"]
   };
   // Mapping snake_case (wizard) → camelCase (code)
-  var COL_KEY_MAP = { bin:"bin", material:"material", quantity:"quantity", batch:"batch", hu:"hu", highest_level_hu:"highestLevelHu", description:"description" };
+  var COL_KEY_MAP = { bin:"bin", material:"material", quantity:"quantity", batch:"batch", hu:"hu", highest_level_hu:"highestLevelHu", description:"description", stock_type:"stockType" };
 
   function getColumnKeywords(){
     var cfgCols = (window.WLAB && window.WLAB.config) ? window.WLAB.config.getSapColumns() : {};
@@ -1967,21 +2041,35 @@ body.license-locked { overflow: hidden; }
     return out;
   }
   var REQUIRED_FIELDS = ["bin","material","quantity","batch","highestLevelHu","hu"];
-  var DETECTION_ORDER = ["bin","material","quantity","batch","highestLevelHu","hu","description"];
-  var FIELD_LABELS = { bin:"Storage Bin", material:"Material", quantity:"Quantity", batch:"Batch", hu:"HU", highestLevelHu:"Highest Level HU", description:"Description (optionnel)" };
+  var DETECTION_ORDER = ["bin","material","quantity","batch","highestLevelHu","hu","description","stockType"];
+  var FIELD_LABELS = { bin:"Storage Bin", material:"Material", quantity:"Quantity", batch:"Batch", hu:"HU", highestLevelHu:"Highest Level HU", description:"Description (optionnel)", stockType:"Stock Type (optionnel)" };
+
+  // Normalise n'importe quelle valeur SAP en un des 4 buckets : unrestricted / blocked / quality / other
+  function normStockType(v){
+    var s = String(v||"").toLowerCase().trim();
+    if (!s) return "unknown";
+    if (/^(unrestricted|libre|available|f2?|st ok)/.test(s) || s === "u") return "unrestricted";
+    if (/(block|bloqu|s2?)/.test(s) || s === "b") return "blocked";
+    if (/(quality|qualit|q-?insp|q insp|qi\b)/.test(s) || s === "q") return "quality";
+    return "other";
+  }
+  var STOCK_TYPE_LABELS = { unrestricted:"Utilisable", blocked:"Bloqué", quality:"Contrôle Qualité", other:"Autre", unknown:"Non renseigné" };
+  var STOCK_TYPE_COLORS = { unrestricted:"#16A34A", blocked:"#DC2626", quality:"#F59E0B", other:"#64748B", unknown:"#CBD5E1" };
+  var STOCK_TYPE_ORDER = ["unrestricted","quality","blocked","other","unknown"];
 
   /* ======================================================================
      ETAT GLOBAL
      ====================================================================== */
   var state = {
-    headers: [], rows: [], mapping: { bin:null, material:null, quantity:null, batch:null, highestLevelHu:null, hu:null, description:null },
-    fileName: "", fileSignature: "",
+    headers: [], rows: [], mapping: { bin:null, material:null, quantity:null, batch:null, highestLevelHu:null, hu:null, description:null, stockType:null },
+    fileName: "", fileSignature: "", importedAt: null,
     allLines: [], linesWithoutBin: [],
     binIndex: new Map(), materialIndex: new Map(),
     binAgg: new Map(), materialAgg: new Map(), flatData: new Map(),
+    stockTypeAgg: new Map(),  // bucket → { count(HU), qtySum, materials:Set }
     binKeyList: [], articleList: [], ignoredLines: 0,
     activeInvTab: null,
-    gapCounts: {},  // bin -> compté (persisté localStorage)
+    gapCounts: {},
     hasData: false
   };
 
@@ -2123,7 +2211,7 @@ body.license-locked { overflow: hidden; }
       var headers = json[0].map(function(h){ return String(h); });
       var rows = json.slice(1).filter(function(r){ return r.some(function(c){ return String(c).trim() !== ""; }); });
 
-      var mapping = { bin:null, material:null, quantity:null, batch:null, highestLevelHu:null, hu:null, description:null };
+      var mapping = { bin:null, material:null, quantity:null, batch:null, highestLevelHu:null, hu:null, description:null, stockType:null };
       var used = [];
       DETECTION_ORDER.forEach(function(field){
         var idx = detectColumn(headers, getColumnKeywords()[field], used);
@@ -2286,9 +2374,12 @@ body.license-locked { overflow: hidden; }
     state.allLines = []; state.linesWithoutBin = [];
     state.binIndex = new Map(); state.materialIndex = new Map();
     state.binAgg = new Map(); state.materialAgg = new Map(); state.flatData = new Map();
+    state.stockTypeAgg = new Map();
     state.ignoredLines = 0;
+    state.importedAt = new Date().toISOString();
 
     var m = state.mapping; var hasDescription = m.description !== null;
+    var hasStockType = m.stockType !== null && m.stockType !== undefined;
 
     state.rows.forEach(function(row){
       var binRaw = row[m.bin];
@@ -2298,15 +2389,22 @@ body.license-locked { overflow: hidden; }
       var hu = String(row[m.hu] || "").trim();
       var highestLevelHu = String(row[m.highestLevelHu] || "").trim();
       var description = hasDescription ? String(row[m.description] || "").trim() : "";
+      var stockTypeRaw = hasStockType ? String(row[m.stockType] || "").trim() : "";
+      var stockType = hasStockType ? normStockType(stockTypeRaw) : "unknown";
 
       var parsed = parseBinCode(binRaw);
       if (!parsed){
         state.ignoredLines++;
         if (material || hu || batch){
-          state.linesWithoutBin.push({ material:material, hu:hu, highestLevelHu:highestLevelHu, batch:batch, quantity:qty, description:description });
+          state.linesWithoutBin.push({ material:material, hu:hu, highestLevelHu:highestLevelHu, batch:batch, quantity:qty, description:description, stockType:stockType });
         }
         return;
       }
+
+      // Agrégation Stock Type (toutes lignes classées, même TPA)
+      if (!state.stockTypeAgg.has(stockType)) state.stockTypeAgg.set(stockType, { count:0, qtySum:0, materials:new Set() });
+      var st = state.stockTypeAgg.get(stockType);
+      st.count += 1; st.qtySum += qty; if (material) st.materials.add(material);
 
       if (parsed.tpa !== undefined){
         var zCode = parsed.section;
@@ -2318,7 +2416,7 @@ body.license-locked { overflow: hidden; }
         return;
       }
 
-      var line = { bin: parsed.bin, material: material, hu: hu, highestLevelHu: highestLevelHu, batch: batch, quantity: qty, description: description,
+      var line = { bin: parsed.bin, material: material, hu: hu, highestLevelHu: highestLevelHu, batch: batch, quantity: qty, description: description, stockType: stockType,
         rack: parsed.rack, level: parsed.level, pos: parsed.pos, section: parsed.section };
       state.allLines.push(line);
 
@@ -3201,7 +3299,7 @@ body.license-locked { overflow: hidden; }
      DASHBOARD : KPI + GRAPHIQUES + HEATMAP
      ====================================================================== */
   var chartRack = null, chartSection = null, chartZone = null, chartBinsStatus = null, chartConformite = null,
-      chartTopArticles = null, chartDataQuality = null, chartHuDistribution = null;
+      chartTopArticles = null, chartDataQuality = null, chartHuDistribution = null, chartStockType = null;
 
   function huColorClass(hu){ if (hu===0) return "hu-0"; if (hu<=20) return "hu-low"; if (hu<=50) return "hu-mid"; return "hu-high"; }
   function huHexColor(hu){ if (hu===0) return "#16A34A"; if (hu<=20) return "#DBEAFE"; if (hu<=50) return "#F37021"; return "#DC2626"; }
@@ -3258,8 +3356,161 @@ body.license-locked { overflow: hidden; }
       return '<div class="kpi-card ' + (k.cls||"") + '"><div class="kv">' + escapeHtml(k.value) + '</div><div class="kl">' + escapeHtml(k.label) + '</div>' + progressHtml + '</div>';
     }).join("");
 
+    renderSynth();
     renderChartsAndHeatmap({ binsVides: binsVides, binsOccupes: binsOccupes, binsCritiques: binsCritiques, conformite: conformite, gapStats: gapStats });
   }
+
+  // Format lisible "12/09/2026 05:47"
+  function fmtImportedAt(iso){
+    if (!iso) return "—";
+    try {
+      var d = new Date(iso);
+      var pad = function(n){ return n < 10 ? "0"+n : ""+n; };
+      return pad(d.getDate()) + "/" + pad(d.getMonth()+1) + "/" + d.getFullYear() + " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+    } catch(e){ return iso; }
+  }
+
+  function renderSynth(){
+    var meta = document.getElementById("synthMeta");
+    var body = document.getElementById("synthBody");
+    if (!body || !meta) return;
+
+    var totalHu = 0, totalQty = 0;
+    state.binAgg.forEach(function(e){ totalHu += e.count; totalQty += e.qtySum; });
+    meta.textContent = "Dernier import : " + fmtImportedAt(state.importedAt) +
+      (state.fileName ? " · " + state.fileName : "") +
+      " · " + state.rows.length + " lignes · " + state.materialAgg.size + " articles · " + totalHu + " HU · Qté totale " + formatNum(totalQty);
+
+    // Un enregistrement par zone (structurée + flat) + un OTHER si présent
+    var rows = [];
+    var otherBinsOcc = 0, otherHu = 0, otherQty = 0;
+
+    STRUCT_ZONES.forEach(function(z){
+      var totalBins = 0, occ = 0, hu = 0, qty = 0;
+      var topByMat = new Map();
+      z.racks.forEach(function(r){
+        z.levels.forEach(function(l){
+          for (var p = z.pos_min; p <= z.pos_max; p++){
+            totalBins++;
+            var e = state.binAgg.get(r+"-"+l+"-"+p);
+            if (!e) continue;
+            if (e.count > 0) occ++;
+            hu += e.count; qty += e.qtySum;
+          }
+        });
+      });
+      // top article par zone : somme des qty via state.allLines
+      state.allLines.forEach(function(line){
+        if (line.section !== z.code) return;
+        topByMat.set(line.material, (topByMat.get(line.material)||0) + line.quantity);
+      });
+      var top = pickTopArticle(topByMat);
+      rows.push({ label: z.label + " (" + z.code + ")", occ: occ, total: totalBins, hu: hu, qty: qty, topMat: top.mat, topQty: top.qty });
+    });
+
+    FLAT_ZONES.forEach(function(z){
+      var totalBins = z.values.length, occ = 0, hu = 0, qty = 0;
+      var topByMat = new Map();
+      z.values.forEach(function(v){
+        var flat = state.flatData.get(z.code);
+        var hadValue = false;
+        if (flat){
+          flat.forEach(function(entry){
+            if (entry.tpa === v){ hadValue = true; qty += entry.qty; topByMat.set(entry.material, (topByMat.get(entry.material)||0) + entry.qty); }
+          });
+        }
+        if (hadValue) occ++;
+      });
+      // HU = count des lignes flat (pas d'agrégation en HU côté flatData), on approxime en nb d'entrées uniques
+      var flat = state.flatData.get(z.code);
+      if (flat) hu = flat.size;
+      var top = pickTopArticle(topByMat);
+      rows.push({ label: z.label + " (" + z.code + ")", occ: occ, total: totalBins, hu: hu, qty: qty, topMat: top.mat, topQty: top.qty });
+    });
+
+    // OTHER : bins hors config
+    var otherMatMap = new Map();
+    state.binAgg.forEach(function(e, key){
+      if (e.section === "OTHER" && e.count > 0){
+        otherBinsOcc++; otherHu += e.count; otherQty += e.qtySum;
+        (state.binIndex.get(key)||[]).forEach(function(l){ otherMatMap.set(l.material, (otherMatMap.get(l.material)||0) + l.quantity); });
+      }
+    });
+    if (otherBinsOcc > 0){
+      var topOther = pickTopArticle(otherMatMap);
+      rows.push({ label: "Hors config (OTHER)", occ: otherBinsOcc, total: otherBinsOcc, hu: otherHu, qty: otherQty, topMat: topOther.mat, topQty: topOther.qty });
+    }
+
+    body.innerHTML = rows.map(function(r){
+      var pct = r.total > 0 ? Math.round((r.occ / r.total) * 100) : 0;
+      var bar = '<div style="display:flex; align-items:center; gap:6px;"><span style="min-width:38px; text-align:right;">'+pct+'%</span>' +
+        '<div style="flex:1; height:8px; background:#E5E7EB; border-radius:4px; overflow:hidden;"><div style="width:'+pct+'%; height:100%; background:'+(pct>=90?"#DC2626":pct>=60?"#F37021":"#16A34A")+';"></div></div></div>';
+      return '<tr><td>'+escapeHtml(r.label)+'</td><td>'+r.occ+' / '+r.total+'</td><td>'+bar+'</td><td>'+r.hu+'</td><td>'+formatNum(r.qty)+'</td><td>'+(r.topMat?escapeHtml(r.topMat):'—')+'</td><td>'+(r.topMat?formatNum(r.topQty):'—')+'</td></tr>';
+    }).join("");
+  }
+
+  function pickTopArticle(byMatMap){
+    var best = { mat: "", qty: 0 };
+    byMatMap.forEach(function(v, k){ if (k && v > best.qty){ best.mat = k; best.qty = v; } });
+    return best;
+  }
+
+  /* --- Export JPG des graphiques (dashboard) --- */
+  function slugForFile(s){
+    return String(s||"chart").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+      .replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,60) || "chart";
+  }
+  function canvasToJpgUrl(canvas){
+    // Chart.js dessine sur fond transparent — on aplati sur blanc pour un JPG lisible.
+    var w = canvas.width, h = canvas.height;
+    var flat = document.createElement("canvas"); flat.width = w; flat.height = h;
+    var ctx = flat.getContext("2d");
+    ctx.fillStyle = "#FFFFFF"; ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(canvas, 0, 0);
+    return flat.toDataURL("image/jpeg", 0.92);
+  }
+  function downloadDataUrl(url, filename){
+    var a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  }
+  function jpgFileNameFor(title){
+    var stamp = new Date().toISOString().slice(0,16).replace(/[:T]/g,"-");
+    var co = (window.WLAB && window.WLAB.config && window.WLAB.config.getCompany) ? (window.WLAB.config.getCompany().code || "wlab") : "wlab";
+    return slugForFile(co) + "_" + slugForFile(title) + "_" + stamp + ".jpg";
+  }
+  function attachJpgButtons(){
+    var cards = document.querySelectorAll("#dashboardContent .chart-card");
+    cards.forEach(function(card){
+      if (card.querySelector(".chart-jpg-btn")) return; // déjà attaché
+      var canvas = card.querySelector("canvas");
+      if (!canvas) return;
+      var h3 = card.querySelector("h3");
+      var title = h3 ? h3.textContent.trim() : "chart";
+      var btn = document.createElement("button");
+      btn.className = "chart-jpg-btn no-print"; btn.type = "button"; btn.textContent = "JPG";
+      btn.title = "Télécharger ce graphique en JPG";
+      btn.addEventListener("click", function(){ downloadDataUrl(canvasToJpgUrl(canvas), jpgFileNameFor(title)); });
+      card.appendChild(btn);
+    });
+  }
+  function downloadAllChartsJpg(){
+    var cards = document.querySelectorAll("#dashboardContent .chart-card canvas");
+    if (!cards.length){ alert("Aucun graphique à télécharger."); return; }
+    cards.forEach(function(canvas, i){
+      var card = canvas.closest(".chart-card");
+      var h3 = card ? card.querySelector("h3") : null;
+      var title = h3 ? h3.textContent.trim() : ("chart-" + (i+1));
+      // Décalage pour éviter que Chrome bloque les download en rafale
+      setTimeout(function(){ downloadDataUrl(canvasToJpgUrl(canvas), jpgFileNameFor(title)); }, i * 250);
+    });
+  }
+  document.addEventListener("DOMContentLoaded", function(){
+    var b1 = document.getElementById("btnDashDownloadAllJpg");
+    if (b1) b1.addEventListener("click", downloadAllChartsJpg);
+    var b2 = document.getElementById("btnDashPrint");
+    if (b2) b2.addEventListener("click", function(){ window.print(); });
+  });
 
   function renderChartsAndHeatmap(stats){
     stats = stats || { binsVides:0, binsOccupes:0, binsCritiques:0, conformite:100, gapStats:{positive:0,negative:0,zero:0} };
@@ -3274,6 +3525,7 @@ body.license-locked { overflow: hidden; }
     }
 
     renderHeatmap(); // ne dépend pas de Chart.js — toujours exécutée
+    attachJpgButtons();
   }
 
   function drawAllCharts(stats, chartTextColor){
@@ -3379,6 +3631,34 @@ body.license-locked { overflow: hidden; }
     chartHuDistribution = new Chart(ctxHuDist, { type:"bar",
       data:{ labels:["HU = 0","HU 1–20","HU 21–50","HU > 50"], datasets:[{ label:"Nb de Bins", data:[buckets["0"],buckets["1-20"],buckets["21-50"],buckets[">50"]], backgroundColor:["#16A34A","#DBEAFE","#F37021","#DC2626"] }] },
       options:{ responsive:true, plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:chartTextColor}}, y:{ticks:{color:chartTextColor}} } } });
+
+    // --- Types de Stock (Unrestricted / Blocked / Quality) ---
+    var stCanvas = document.getElementById("chartStockType");
+    if (stCanvas){
+      var stLabels = [], stData = [], stColors = [];
+      var stTotalLines = 0;
+      STOCK_TYPE_ORDER.forEach(function(k){
+        var v = state.stockTypeAgg.get(k);
+        if (!v || v.count === 0) return;
+        stLabels.push(STOCK_TYPE_LABELS[k]);
+        stData.push(v.count);
+        stColors.push(STOCK_TYPE_COLORS[k]);
+        stTotalLines += v.count;
+      });
+      if (chartStockType) chartStockType.destroy();
+      if (stTotalLines > 0){
+        chartStockType = new Chart(stCanvas.getContext("2d"), { type:"doughnut",
+          data:{ labels: stLabels, datasets:[{ data: stData, backgroundColor: stColors }] },
+          options:{ responsive:true, plugins:{ legend:{ position:"bottom", labels:{color:chartTextColor} },
+            tooltip:{ callbacks:{ label: function(ctx){ var v = ctx.parsed; var pct = stTotalLines>0 ? Math.round(v/stTotalLines*100) : 0; return ctx.label + ": " + v + " lignes (" + pct + "%)"; } } } } } });
+      } else {
+        // Aucun stockType renseigné → placeholder minimal (le doughnut ne peut pas dessiner du vide)
+        var ctx2 = stCanvas.getContext("2d");
+        ctx2.clearRect(0, 0, stCanvas.width, stCanvas.height);
+        ctx2.fillStyle = chartTextColor; ctx2.font = "12px sans-serif"; ctx2.textAlign = "center";
+        ctx2.fillText("Aucune donnée Stock Type (colonne non mappée à l'import)", stCanvas.width/2, stCanvas.height/2);
+      }
+    }
   }
   function a_len(arr){ return arr ? arr.length : 0; }
 

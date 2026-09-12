@@ -483,6 +483,13 @@ body.license-locked { overflow: hidden; }
 .sim-label { display:block; font-size:12px; font-weight:600; color:#1D2240; margin-bottom:4px; }
 .sim-input { width:100%; padding:8px 10px; border:1px solid #CBD5E1; border-radius:6px; font-size:13px; font-family:inherit; background:#fff; }
 .sim-input:focus { outline:none; border-color:#F37021; box-shadow:0 0 0 2px rgba(243,112,33,0.15); }
+.map-legend-cell { display:inline-block; width:16px; height:16px; border:1px solid #CBD5E1; border-radius:3px; vertical-align:middle; }
+.map-zone-title { font-size:13px; font-weight:600; color:#1D2240; margin:0 0 8px 0; }
+.map-rack-label { font-size:10px; fill:#64748B; }
+.map-cell { cursor:pointer; stroke:#fff; stroke-width:1; }
+.map-cell:hover { stroke:#1D2240; stroke-width:2; }
+.map-flat-tile { display:inline-block; min-width:80px; padding:10px 12px; margin:4px; border:1px solid #CBD5E1; border-radius:6px; cursor:pointer; font-size:12px; color:#1D2240; }
+.map-flat-tile:hover { border-color:#F37021; }
 </style>
 </head>
 <body>
@@ -1293,6 +1300,7 @@ body.license-locked { overflow: hidden; }
       <li class="nav-item"><div class="nav-link" data-page="compare"><span class="ico">&#8646;</span> Comparaison</div></li>
       <li class="nav-item"><div class="nav-link" data-page="anomalies"><span class="ico">&#9888;</span> Anomalies</div></li>
       <li class="nav-item"><div class="nav-link" data-page="simulator"><span class="ico">&#9881;</span> Simulateur</div></li>
+      <li class="nav-item"><div class="nav-link" data-page="map"><span class="ico">&#9635;&#9635;</span> Carte 2D</div></li>
       <li class="nav-item"><div class="nav-link" data-page="report"><span class="ico">&#128203;</span> Rapport</div></li>
       <li class="nav-item"><div class="nav-link" data-page="history"><span class="ico">&#8635;</span> Historique</div></li>
     </ul>
@@ -1735,6 +1743,28 @@ body.license-locked { overflow: hidden; }
         </div>
       </div>
     </div>
+    <!-- ============ PAGE : CARTE 2D ============ -->
+    <div class="page hidden" id="page-map">
+      <div class="page-desc">Vue schématique de l'entrepôt. Chaque case = un bin, colorée selon le nombre de HU. Survolez pour un aperçu, cliquez pour ouvrir le détail.</div>
+      <div id="mapEmpty" class="card"><div class="empty-state">Importez un fichier pour afficher la carte.</div></div>
+      <div id="mapContent" class="hidden">
+        <div class="card">
+          <div class="btn-row" style="align-items:center; gap:16px; flex-wrap:wrap;">
+            <div style="display:flex; align-items:center; gap:6px; font-size:12px; color:#1D2240;">
+              <span>Légende HU :</span>
+              <span class="map-legend-cell" style="background:#E5E7EB;"></span><span>0</span>
+              <span class="map-legend-cell" style="background:#BBF7D0;"></span><span>1-5</span>
+              <span class="map-legend-cell" style="background:#FDE68A;"></span><span>6-15</span>
+              <span class="map-legend-cell" style="background:#FDBA74;"></span><span>16-30</span>
+              <span class="map-legend-cell" style="background:#F87171;"></span><span>31-50</span>
+              <span class="map-legend-cell" style="background:#B91C1C;"></span><span>&gt;50</span>
+            </div>
+            <div style="margin-left:auto; font-size:12px; color:#64748B;" id="mapMeta"></div>
+          </div>
+        </div>
+        <div id="mapZones"></div>
+      </div>
+    </div>
     <!-- ============ PAGE : RAPPORT AUTOMATIQUE ============ -->
     <div class="page hidden" id="page-report">
       <div class="page-desc">Rapport de synthèse généré automatiquement à partir des données importées.</div>
@@ -2002,7 +2032,7 @@ body.license-locked { overflow: hidden; }
      ====================================================================== */
   var PAGE_TITLES = { dashboard:"Dashboard", import:"Import SAP", inventory:"Feuilles d'Inventaire", barcode:"Codes-barres",
     bins:"Gestion des Bins", hu:"Analyse HU", batch:"Analyse Batchs", gap:"Écarts Inventaire",
-    compare:"Comparaison", anomalies:"Anomalies", simulator:"Simulateur de Réagencement", report:"Rapport", history:"Historique" };
+    compare:"Comparaison", anomalies:"Anomalies", simulator:"Simulateur de Réagencement", map:"Carte 2D de l'Entrepôt", report:"Rapport", history:"Historique" };
 
   function goToPage(page){
     document.querySelectorAll(".nav-link").forEach(function(l){ l.classList.toggle("active", l.getAttribute("data-page") === page); });
@@ -2015,6 +2045,7 @@ body.license-locked { overflow: hidden; }
     if (page === "compare") renderCompareModule();
     if (page === "anomalies") renderAnomaliesModule();
     if (page === "simulator") renderSimulatorModule();
+    if (page === "map") renderMapModule();
     if (page === "report") renderReportPage();
     closeSidebar();
   }
@@ -2335,6 +2366,7 @@ body.license-locked { overflow: hidden; }
     safeRun(renderCompareModule, "Comparaison");
     safeRun(function(){ if (!document.getElementById("page-anomalies").classList.contains("hidden")) renderAnomaliesModule(); }, "Anomalies");
     safeRun(function(){ if (!document.getElementById("page-simulator").classList.contains("hidden")) renderSimulatorModule(); }, "Simulateur");
+    safeRun(function(){ if (!document.getElementById("page-map").classList.contains("hidden")) renderMapModule(); }, "Carte 2D");
   }
 
   /* ======================================================================
@@ -3033,6 +3065,126 @@ body.license-locked { overflow: hidden; }
   if (btnSimAdd) btnSimAdd.addEventListener("click", simAddMoveFromForm);
   if (btnSimClear) btnSimClear.addEventListener("click", simClearPlan);
   if (btnSimExp) btnSimExp.addEventListener("click", simExportMissionSheet);
+
+  /* ======================================================================
+     CARTE 2D DE L'ENTREPÔT (Sprint 4)
+     ====================================================================== */
+  function mapCellColor(hu){
+    if (!hu) return "#E5E7EB";
+    if (hu <= 5)  return "#BBF7D0";
+    if (hu <= 15) return "#FDE68A";
+    if (hu <= 30) return "#FDBA74";
+    if (hu <= 50) return "#F87171";
+    return "#B91C1C";
+  }
+
+  function mapOpenBin(binKey){
+    goToPage("inventory");
+    var meta = BIN_UNIVERSE.meta.get(binKey);
+    switchInvTab(meta ? meta.section : "OTHER");
+    if (typeof searchBinInput !== "undefined" && searchBinInput) searchBinInput.value = binKey;
+    showBinDetails(binKey);
+  }
+
+  function renderMapModule(){
+    var empty = document.getElementById("mapEmpty");
+    var content = document.getElementById("mapContent");
+    var zonesHost = document.getElementById("mapZones");
+    var meta = document.getElementById("mapMeta");
+    if (!empty || !content || !zonesHost) return;
+    if (!state.hasData){
+      empty.classList.remove("hidden"); content.classList.add("hidden");
+      zonesHost.innerHTML = ""; return;
+    }
+    empty.classList.add("hidden"); content.classList.remove("hidden");
+
+    var totalBins = BIN_UNIVERSE.keys.length;
+    var occ = 0; state.binAgg.forEach(function(e){ if (e.count>0) occ++; });
+    if (meta) meta.textContent = totalBins + " emplacements · " + occ + " occupés";
+
+    var html = "";
+    // Zones structurées : une grille SVG par zone
+    STRUCT_ZONES.forEach(function(z){
+      html += renderMapStructuredZone(z);
+    });
+    // Zones flat : tuiles colorées
+    FLAT_ZONES.forEach(function(z){
+      html += renderMapFlatZone(z);
+    });
+    // Bloc OTHER (bins présents en SAP mais hors config)
+    var otherKeys = [];
+    state.binAgg.forEach(function(agg, key){ if (agg.section === "OTHER" && agg.count>0) otherKeys.push(key); });
+    if (otherKeys.length){
+      html += '<div class="card"><h3 class="map-zone-title">Hors config (OTHER) · '+otherKeys.length+' bin(s)</h3><div>';
+      otherKeys.sort().forEach(function(k){
+        var agg = state.binAgg.get(k);
+        var col = mapCellColor(agg.count);
+        html += '<span class="map-flat-tile" style="background:'+col+';" title="'+escapeHtml(k)+' · '+agg.count+' HU · '+agg.materials.size+' articles" data-bin="'+escapeHtml(k)+'">'+escapeHtml(k)+' · '+agg.count+'</span>';
+      });
+      html += '</div></div>';
+    }
+    zonesHost.innerHTML = html;
+  }
+
+  function renderMapStructuredZone(z){
+    var racks = z.racks, levels = z.levels, pmin = z.pos_min, pmax = z.pos_max;
+    if (!racks.length || !levels.length) return "";
+    var cellW = 22, cellH = 18, gap = 2, labelW = 60, levelGap = 6;
+    var cols = (pmax - pmin + 1);
+    var rowH = levels.length * cellH + (levels.length-1) * gap + levelGap;
+    var svgW = labelW + cols * (cellW + gap);
+    var svgH = racks.length * (rowH + 8) + 24;
+
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="'+svgW+'" height="'+svgH+'" viewBox="0 0 '+svgW+' '+svgH+'">';
+    // header positions
+    svg += '<text x="'+labelW+'" y="12" class="map-rack-label" style="font-size:10px; fill:#64748B;">Positions '+pmin+' → '+pmax+'</text>';
+    racks.forEach(function(r, ri){
+      var y0 = 20 + ri * (rowH + 8);
+      svg += '<text x="0" y="'+(y0 + rowH/2)+'" class="map-rack-label" style="font-size:11px; fill:#1D2240; font-weight:600;">Rack '+escapeHtml(r)+'</text>';
+      levels.forEach(function(l, li){
+        var y = y0 + li * (cellH + gap);
+        for (var p = pmin; p <= pmax; p++){
+          var x = labelW + (p - pmin) * (cellW + gap);
+          var k = r + "-" + l + "-" + p;
+          var agg = state.binAgg.get(k);
+          var hu = agg ? agg.count : 0;
+          var art = agg ? agg.materials.size : 0;
+          var col = mapCellColor(hu);
+          var tt = k + " — niveau " + l + " · " + hu + " HU · " + art + " articles";
+          svg += '<rect class="map-cell" x="'+x+'" y="'+y+'" width="'+cellW+'" height="'+cellH+'" rx="2" fill="'+col+'" data-bin="'+escapeHtml(k)+'"><title>'+escapeHtml(tt)+'</title></rect>';
+        }
+      });
+    });
+    svg += '</svg>';
+    return '<div class="card"><h3 class="map-zone-title">'+escapeHtml(z.label)+' ('+escapeHtml(z.code)+') · '+racks.length+' racks × '+levels.length+' niveaux × '+cols+' positions</h3><div style="overflow-x:auto;">'+svg+'</div></div>';
+  }
+
+  function renderMapFlatZone(z){
+    if (!z.values || !z.values.length) return "";
+    var html = '<div class="card"><h3 class="map-zone-title">'+escapeHtml(z.label)+' ('+escapeHtml(z.code)+') · '+z.values.length+' emplacements</h3><div>';
+    z.values.forEach(function(v){
+      var agg = state.binAgg.get(v);
+      var hu = agg ? agg.count : 0;
+      var art = agg ? agg.materials.size : 0;
+      var col = mapCellColor(hu);
+      var tt = v + " · " + hu + " HU · " + art + " articles";
+      html += '<span class="map-flat-tile" style="background:'+col+';" title="'+escapeHtml(tt)+'" data-bin="'+escapeHtml(v)+'">'+escapeHtml(v)+' · '+hu+'</span>';
+    });
+    html += '</div></div>';
+    return html;
+  }
+
+  // Délégation clic sur tous les bins (cellules SVG + tuiles) de la carte
+  (function(){
+    var host = document.getElementById("mapZones");
+    if (!host) return;
+    host.addEventListener("click", function(e){
+      var el = e.target.closest("[data-bin]");
+      if (!el) return;
+      var b = el.getAttribute("data-bin");
+      if (b) mapOpenBin(b);
+    });
+  })();
 
   /* ======================================================================
      DASHBOARD : KPI + GRAPHIQUES + HEATMAP
